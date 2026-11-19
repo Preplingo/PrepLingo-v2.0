@@ -1,10 +1,11 @@
 import React from 'react';
-import { Moon, Sun, Plus } from 'lucide-react';
+import { Moon, Sun, Plus, Info } from 'lucide-react';
 import { AppLogo } from './AppLogo';
 import { SteamingCoffeeIcon } from './BuyCoffeeModal';
 
 interface HeaderProps {
   onOpenAddWord: () => void;
+  onOpenAbout: () => void;
   onOpenBuyCoffee: () => void;
   darkMode: boolean;
   onToggleDarkMode: () => void;
@@ -12,6 +13,7 @@ interface HeaderProps {
 
 export const Header: React.FC<HeaderProps> = ({
   onOpenAddWord,
+  onOpenAbout,
   onOpenBuyCoffee,
   darkMode,
   onToggleDarkMode,
@@ -64,6 +66,23 @@ export const Header: React.FC<HeaderProps> = ({
               className="w-4 h-4 shrink-0"
             />
             <span className="hidden md:inline" style={{ color: '#ffffff' }}>Kelime Ekle</span>
+          </button>
+
+          {/* About / Info Button */}
+          <button
+            type="button"
+            onClick={onOpenAbout}
+            className="min-h-[36px] min-w-[36px] sm:min-h-[40px] sm:min-w-[40px] p-2 rounded-xl text-[#475569] dark:text-[#f8fafc] bg-[#f8fafc] dark:bg-[#0f172a] hover:bg-[#f1f5f9] dark:hover:bg-[#334155] border border-[#e2e8f0] dark:border-[#334155] transition-colors flex items-center justify-center cursor-pointer"
+            title="PrepLingo Hakkında"
+            aria-label="PrepLingo Hakkında bilgi penceresini aç"
+          >
+            <Info
+              width={16}
+              height={16}
+              fill="none"
+              stroke="#4f46e5"
+              className="w-4 h-4 dark:stroke-[#818cf8]"
+            />
           </button>
 
           {/* Sleek Day / Night Theme Toggle */}

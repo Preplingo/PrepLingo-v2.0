@@ -9,6 +9,7 @@ import { FavoritesView } from './components/FavoritesView';
 import { GamesView } from './components/GamesView';
 import { ProgressView } from './components/ProgressView';
 import { AddWordModal } from './components/AddWordModal';
+import { AboutModal } from './components/AboutModal';
 import { BuyCoffeeModal } from './components/BuyCoffeeModal';
 import { SplashScreen } from './components/SplashScreen';
 import { OfflineIndicator } from './components/OfflineIndicator';
@@ -160,6 +161,7 @@ export default function App() {
   // Active Bottom Nav Tab: 'dictionary' | 'flashcards' | 'favorites' | 'games' | 'progress'
   const [activeTab, setActiveTab] = useState<ActiveTab>('dictionary');
   const [isAddWordOpen, setIsAddWordOpen] = useState(false);
+  const [isAboutOpen, setIsAboutOpen] = useState(false);
   const [isCoffeeModalOpen, setIsCoffeeModalOpen] = useState(false);
   const [practiceWordId, setPracticeWordId] = useState<string | undefined>(undefined);
 
@@ -329,6 +331,7 @@ export default function App() {
       {/* Top Header */}
       <Header
         onOpenAddWord={() => setIsAddWordOpen(true)}
+        onOpenAbout={() => setIsAboutOpen(true)}
         onOpenBuyCoffee={() => setIsCoffeeModalOpen(true)}
         darkMode={darkMode}
         onToggleDarkMode={toggleDarkMode}
@@ -398,6 +401,12 @@ export default function App() {
         isOpen={isAddWordOpen}
         onClose={() => setIsAddWordOpen(false)}
         onAddWord={handleAddWord}
+      />
+
+      {/* About Modal */}
+      <AboutModal
+        isOpen={isAboutOpen}
+        onClose={() => setIsAboutOpen(false)}
       />
 
       {/* Buy Me a Coffee Modal */}
