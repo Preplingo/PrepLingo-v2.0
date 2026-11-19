@@ -1102,7 +1102,7 @@ const ACADEMIC_B1_B2_WORD_SET = new Set<string>([
   'unprecedented', 'utilize', 'viable', 'vulnerable', 'widespread',
 ]);
 
-function shuffleArray<T>(items: T[]): T[] {
+export function shuffleArray<T>(items: T[]): T[] {
   const arr = [...items];
   for (let i = arr.length - 1; i > 0; i--) {
     const j = Math.floor(Math.random() * (i + 1));
@@ -1292,18 +1292,26 @@ function pickDistractorsInPool(
 export function generateMultipleChoiceQuiz(
   words: WordEntry[],
   levelFilter: ExerciseLevelFilter = 'all',
-  count = 10
+  count = 10,
+  recentWordKeys?: Set<string>
 ): MultipleChoiceQuestion[] {
   const elemMap = buildElementaryEntryMap(words);
   const elemList = Array.from(elemMap.values());
 
-  // Build A1-A2 curated questions
+  // Build A1-A2 curated questions with Fisher-Yates shuffle + anti-repeat preference
   const buildA1A2Questions = (limit: number): MultipleChoiceQuestion[] => {
     const results: MultipleChoiceQuestion[] = [];
     const usedTargets = new Set<string>();
 
-    // 1. Curated everyday A1-A2 items
-    for (const item of shuffleArray(CURATED_A1_A2_MC)) {
+    const freshCurated = shuffleArray(
+      CURATED_A1_A2_MC.filter((item) => !recentWordKeys?.has(item.targetWord.toLowerCase()))
+    );
+    const repeatCurated = shuffleArray(
+      CURATED_A1_A2_MC.filter((item) => recentWordKeys?.has(item.targetWord.toLowerCase()))
+    );
+
+    // 1. Curated everyday A1-A2 items (unseen first, then fallback)
+    for (const item of [...freshCurated, ...repeatCurated]) {
       if (results.length >= limit) break;
       const target = elemMap.get(item.targetWord.toLowerCase());
       if (!target || usedTargets.has(target.word.toLowerCase())) continue;
@@ -1406,32 +1414,32 @@ export function generateMultipleChoiceQuiz(
       }
     }
 
-    return results;
+    return shuffleArray(results);
   };
 
-  // Build B1-B2 questions strictly from the B1-B2 academic pool
+  // Build B1-B2 questions strictly from the B1-B2 academic pool with Fisher-Yates shuffle + anti-repeat
   const buildB1B2Questions = (limit: number): MultipleChoiceQuestion[] => {
     const bandWords = words.filter((w) => classifyWordCefrBand(w) === 'b1-b2');
     const distractorPool = bandWords;
 
-    const candidates = shuffleArray(
-      bandWords.filter((w) => {
-        if (!w.word || !w.enExample || w.enExample.trim().length < 24) return false;
-        const regex = new RegExp(`\\b${escapeRegExp(w.word.trim())}\\b`, 'i');
-        return regex.test(w.enExample);
-      })
-    );
+    const validBandWords = bandWords.filter((w) => {
+      if (!w.word || !w.enExample || w.enExample.trim().length < 24) return false;
+      const regex = new RegExp(`\\b${escapeRegExp(w.word.trim())}\\b`, 'i');
+      return regex.test(w.enExample);
+    });
 
-    // Prioritize custom words matching this band
-    const customFirst = [
-      ...candidates.filter((w) => w.isCustom).slice(0, 3),
-      ...candidates.filter((w) => !w.isCustom),
-    ];
+    const freshCandidates = shuffleArray(
+      validBandWords.filter((w) => !recentWordKeys?.has(w.word.toLowerCase().trim()))
+    );
+    const repeatCandidates = shuffleArray(
+      validBandWords.filter((w) => recentWordKeys?.has(w.word.toLowerCase().trim()))
+    );
+    const orderedCandidates = [...freshCandidates, ...repeatCandidates];
 
     const results: MultipleChoiceQuestion[] = [];
     const usedIds = new Set<string>();
 
-    for (const target of customFirst) {
+    for (const target of orderedCandidates) {
       if (results.length >= limit) break;
       if (usedIds.has(target.id)) continue;
 
@@ -1477,14 +1485,14 @@ export function generateMultipleChoiceQuiz(
       });
     }
 
-    return results;
+    return shuffleArray(results);
   };
 
   if (levelFilter === 'a1-a2') {
-    return buildA1A2Questions(count);
+    return shuffleArray(buildA1A2Questions(count));
   }
   if (levelFilter === 'b1-b2') {
-    return buildB1B2Questions(count);
+    return shuffleArray(buildB1B2Questions(count));
   }
 
   // 'all': Balanced mix of A1-A2 (4) and B1-B2 (6)
@@ -1511,14 +1519,36 @@ export function getClozePassagesForFilter(
 }
 
 /**
+ * Returns the strictly CEFR-filtered Cloze Test passages shuffled via Fisher-Yates.
+ * When `avoidFirstId` is provided and the pool has 2+ passages, guarantees the first
+ * passage is different from `avoidFirstId` so consecutive plays never repeat.
+ */
+export function getShuffledClozePassagesForFilter(
+  levelFilter: ExerciseLevelFilter,
+  avoidFirstId?: string
+): RawClozePassage[] {
+  const shuffled = shuffleArray(getClozePassagesForFilter(levelFilter));
+  if (avoidFirstId && shuffled.length > 1 && shuffled[0].id === avoidFirstId) {
+    const swapIdx = 1 + Math.floor(Math.random() * (shuffled.length - 1));
+    [shuffled[0], shuffled[swapIdx]] = [shuffled[swapIdx], shuffled[0]];
+  }
+  return shuffled;
+}
+
+/**
  * Builds a complete 5-blank Cloze Test session strictly within the selected level filter.
+ * Accepts an optional pre-shuffled passage list so UI switching and random selection stay in sync.
  */
 export function buildClozeTestSession(
   words: WordEntry[],
   levelFilter: ExerciseLevelFilter,
-  passageIndexInFilter: number
+  passageIndexInFilter: number,
+  customPassages?: RawClozePassage[]
 ): ClozeTestSession | null {
-  const availablePassages = getClozePassagesForFilter(levelFilter);
+  const availablePassages =
+    customPassages && customPassages.length > 0
+      ? customPassages
+      : getShuffledClozePassagesForFilter(levelFilter);
   if (availablePassages.length === 0) return null;
 
   const safeIndex =
@@ -1633,7 +1663,8 @@ export function buildClozeTestSession(
 export function generateSynonymQuiz(
   words: WordEntry[],
   levelFilter: ExerciseLevelFilter = 'all',
-  count = 10
+  count = 10,
+  recentWordKeys?: Set<string>
 ): SynonymQuestion[] {
   const wordMap = new Map<string, WordEntry>();
   for (const w of words) {
@@ -1659,10 +1690,21 @@ export function generateSynonymQuiz(
         ? elemList
         : words.filter((w) => classifyWordCefrBand(w) === 'b1-b2');
 
+    const freshPairs = shuffleArray(
+      rawPairs.filter(
+        ([a, b]) => !recentWordKeys?.has(a.toLowerCase()) && !recentWordKeys?.has(b.toLowerCase())
+      )
+    );
+    const repeatPairs = shuffleArray(
+      rawPairs.filter(
+        ([a, b]) => recentWordKeys?.has(a.toLowerCase()) || recentWordKeys?.has(b.toLowerCase())
+      )
+    );
+
     const results: SynonymQuestion[] = [];
     const usedWordKeys = new Set<string>();
 
-    for (const [wordA, wordB] of shuffleArray(rawPairs)) {
+    for (const [wordA, wordB] of [...freshPairs, ...repeatPairs]) {
       if (results.length >= limit) break;
 
       const entryA = band === 'a1-a2' ? elemMap.get(wordA) : wordMap.get(wordA);
@@ -1713,14 +1755,14 @@ export function generateSynonymQuiz(
       });
     }
 
-    return results;
+    return shuffleArray(results);
   };
 
   if (levelFilter === 'a1-a2') {
-    return buildPairsForBand('a1-a2', count);
+    return shuffleArray(buildPairsForBand('a1-a2', count));
   }
   if (levelFilter === 'b1-b2') {
-    return buildPairsForBand('b1-b2', count);
+    return shuffleArray(buildPairsForBand('b1-b2', count));
   }
 
   // 'all': Balanced mix of A1-A2 (4) and B1-B2 (6)

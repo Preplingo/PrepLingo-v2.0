@@ -16,6 +16,7 @@ import {
   Sparkles,
   Check,
   AlertCircle,
+  Shuffle,
 } from 'lucide-react';
 import confetti from 'canvas-confetti';
 import { WordEntry } from '../types';
@@ -27,7 +28,7 @@ import {
   MultipleChoiceQuestion,
   ClozeTestSession,
   SynonymQuestion,
-  getClozePassagesForFilter,
+  getShuffledClozePassagesForFilter,
   generateMultipleChoiceQuiz,
   buildClozeTestSession,
   generateSynonymQuiz,
@@ -165,11 +166,13 @@ export const ExercisesView: React.FC<ExercisesViewProps> = ({
     return map;
   }, [words]);
 
-  // Strictly filtered Cloze passages for the currently selected CEFR level
-  const filteredClozePassages = useMemo(
-    () => getClozePassagesForFilter(levelFilter),
-    [levelFilter]
+  // Fisher-Yates shuffled Cloze passages for the currently selected CEFR level (shuffled on mount & filter change)
+  const [shuffledClozePassages, setShuffledClozePassages] = useState(() =>
+    getShuffledClozePassagesForFilter('all')
   );
+  const lastClozePassageIdRef = useRef<string | null>(null);
+  const recentMcWordsRef = useRef<Set<string>>(new Set());
+  const recentSynWordsRef = useRef<Set<string>>(new Set());
 
   const recordTestCompletion = useCallback((correctCount: number, totalCount: number) => {
     setStats((prev) => {
@@ -193,6 +196,9 @@ export const ExercisesView: React.FC<ExercisesViewProps> = ({
 
   const handleSelectFilter = (nextFilter: ExerciseLevelFilter) => {
     setLevelFilter(nextFilter);
+    setShuffledClozePassages(
+      getShuffledClozePassagesForFilter(nextFilter, lastClozePassageIdRef.current ?? undefined)
+    );
     setClozePassageIndex(0);
     setEmptyNotice(null);
   };
@@ -201,13 +207,16 @@ export const ExercisesView: React.FC<ExercisesViewProps> = ({
   const startMultipleChoice = useCallback(
     (overrideFilter?: ExerciseLevelFilter) => {
       const filterToUse = overrideFilter ?? levelFilter;
-      const generated = generateMultipleChoiceQuiz(words, filterToUse, 10);
+      const generated = generateMultipleChoiceQuiz(words, filterToUse, 10, recentMcWordsRef.current);
       if (generated.length === 0) {
         setEmptyNotice(
           'Seçili seviyede örnek cümleli yeterli kelime bulunamadı. "Tümü", "A1–A2" veya "B1–B2" seviyelerinden birini seçebilirsiniz.'
         );
         return;
       }
+      recentMcWordsRef.current = new Set(
+        generated.map((q) => q.targetWord.word.toLowerCase().trim())
+      );
       setEmptyNotice(null);
       setMcQuestions(generated);
       setMcIndex(0);
@@ -219,16 +228,33 @@ export const ExercisesView: React.FC<ExercisesViewProps> = ({
   );
 
   const startClozeTest = useCallback(
-    (passageIdx?: number, overrideFilter?: ExerciseLevelFilter) => {
+    (explicitIdx?: number, overrideFilter?: ExerciseLevelFilter) => {
       const filterToUse = overrideFilter ?? levelFilter;
-      const targetIdx = typeof passageIdx === 'number' ? passageIdx : 0;
-      const session = buildClozeTestSession(words, filterToUse, targetIdx);
+      const isSpecificPick = typeof explicitIdx === 'number';
+
+      // On fresh entry or "Yeni Paragraf / Farklı Test", reshuffle via Fisher-Yates and avoid repeating last passage
+      let passageList = shuffledClozePassages;
+      let targetIdx = 0;
+
+      if (!isSpecificPick || overrideFilter !== undefined || passageList.length === 0) {
+        passageList = getShuffledClozePassagesForFilter(
+          filterToUse,
+          lastClozePassageIdRef.current ?? undefined
+        );
+        setShuffledClozePassages(passageList);
+        targetIdx = 0;
+      } else {
+        targetIdx = explicitIdx;
+      }
+
+      const session = buildClozeTestSession(words, filterToUse, targetIdx, passageList);
       if (!session) {
         setEmptyNotice(
           'Seçili seviyede Cloze Test paragrafı bulunamadı. "Tümü", "A1–A2" veya "B1–B2" seviyesini seçebilirsiniz.'
         );
         return;
       }
+      lastClozePassageIdRef.current = session.passageId;
       setEmptyNotice(null);
       setClozePassageIndex(session.passageIndex);
       setClozeSession(session);
@@ -237,19 +263,25 @@ export const ExercisesView: React.FC<ExercisesViewProps> = ({
       setShowSummary(false);
       setActiveMode('cloze-test');
     },
-    [words, levelFilter]
+    [words, levelFilter, shuffledClozePassages]
   );
 
   const startSynonyms = useCallback(
     (overrideFilter?: ExerciseLevelFilter) => {
       const filterToUse = overrideFilter ?? levelFilter;
-      const generated = generateSynonymQuiz(words, filterToUse, 10);
+      const generated = generateSynonymQuiz(words, filterToUse, 10, recentSynWordsRef.current);
       if (generated.length === 0) {
         setEmptyNotice(
           'Seçili seviyede eş anlamlı sorusu bulunamadı. "Tümü", "A1–A2" veya "B1–B2" seviyelerinden birini seçebilirsiniz.'
         );
         return;
       }
+      const usedKeys = new Set<string>();
+      for (const q of generated) {
+        usedKeys.add(q.promptWord.word.toLowerCase().trim());
+        usedKeys.add(q.correctSynonym.word.toLowerCase().trim());
+      }
+      recentSynWordsRef.current = usedKeys;
       setEmptyNotice(null);
       setSynQuestions(generated);
       setSynIndex(0);
@@ -717,14 +749,13 @@ export const ExercisesView: React.FC<ExercisesViewProps> = ({
               type="button"
               onClick={() => {
                 if (activeMode === 'multiple-choice') startMultipleChoice();
-                else if (activeMode === 'cloze-test') startClozeTest(clozePassageIndex + 1);
+                else if (activeMode === 'cloze-test') startClozeTest();
                 else startSynonyms();
               }}
-              style={{ backgroundColor: '#16a34a', color: '#ffffff' }}
-              className="legacy-btn-green min-h-[44px] px-5 py-2.5 rounded-xl bg-[#16a34a] hover:bg-[#15803d] text-[#ffffff] font-semibold text-xs sm:text-sm inline-flex items-center gap-2 shadow-xs transition-all cursor-pointer active:scale-95 whitespace-nowrap"
+              className="legacy-btn-green min-h-[44px] px-5 py-2.5 rounded-xl bg-[#388E3C] hover:bg-[#2E7D32] dark:bg-[#4F46E5] dark:hover:bg-[#3F51B5] text-[#FFFFFF] font-semibold text-xs sm:text-sm inline-flex items-center gap-2 transition-all cursor-pointer active:scale-95 whitespace-nowrap"
             >
-              <RotateCcw width={16} height={16} fill="none" stroke="#ffffff" className="w-4 h-4 shrink-0" />
-              <span>{activeMode === 'cloze-test' ? 'Sonraki Paragrafa Geç' : 'Yeni Test Çöz'}</span>
+              <RotateCcw width={16} height={16} fill="none" stroke="#FFFFFF" className="w-4 h-4 shrink-0" />
+              <span>{activeMode === 'cloze-test' ? 'Yeni Paragraf / Farklı Test' : 'Yeni Test Çöz'}</span>
             </button>
 
             <button
@@ -1076,28 +1107,34 @@ export const ExercisesView: React.FC<ExercisesViewProps> = ({
               </h2>
             </div>
 
-            {/* Strictly filtered passage switcher */}
-            <div className="flex flex-wrap items-center gap-1">
-              {filteredClozePassages.map((p, idx) => (
+            {/* Strictly filtered & Fisher-Yates shuffled passage switcher + Random button */}
+            <div className="flex flex-wrap items-center gap-1.5">
+              {shuffledClozePassages.map((p, idx) => (
                 <button
                   key={p.id}
                   type="button"
                   onClick={() => startClozeTest(idx)}
-                  style={
+                  className={`w-7 h-7 rounded-lg text-xs font-mono font-bold border transition-colors cursor-pointer ${
                     idx === clozeSession.passageIndex
-                      ? { backgroundColor: '#16a34a', color: '#ffffff' }
-                      : undefined
-                  }
-                  className={`w-7 h-7 rounded-lg text-xs font-mono font-bold transition-colors cursor-pointer ${
-                    idx === clozeSession.passageIndex
-                      ? 'bg-[#16a34a] text-[#ffffff]'
-                      : 'bg-[#f1f5f9] dark:bg-[#0f172a] text-[#475569] dark:text-[#94a3b8] hover:bg-[#e2e8f0] dark:hover:bg-[#334155]'
+                      ? 'legacy-btn-green bg-[#388E3C] dark:bg-[#4F46E5] text-[#FFFFFF] border-[#2E7D32] dark:border-[#3F51B5]'
+                      : 'bg-[#E2F0D9] dark:bg-[#0F172A] text-[#0E2F0E] dark:text-[#94A3B8] border-[#B4C6A6] dark:border-[#334155] hover:border-[#388E3C] dark:hover:border-[#4F46E5]'
                   }`}
                   title={`${p.cefrBadge} · ${p.titleTr}`}
                 >
                   {idx + 1}
                 </button>
               ))}
+              {shuffledClozePassages.length > 1 && (
+                <button
+                  type="button"
+                  onClick={() => startClozeTest()}
+                  className="h-7 px-2.5 rounded-lg text-[11px] font-semibold bg-[#FFFFFF] dark:bg-[#0F172A] text-[#0E2F0E] dark:text-[#F8FAFC] border border-[#B4C6A6] dark:border-[#334155] hover:border-[#388E3C] dark:hover:border-[#4F46E5] inline-flex items-center gap-1 transition-colors cursor-pointer whitespace-nowrap"
+                  title="Rastgele farklı bir paragraf yükle"
+                >
+                  <Shuffle width={12} height={12} fill="none" stroke="currentColor" className="w-3 h-3 shrink-0" />
+                  <span>Farklı Paragraf</span>
+                </button>
+              )}
             </div>
           </div>
 
@@ -1601,20 +1638,20 @@ export const ExercisesView: React.FC<ExercisesViewProps> = ({
                 {clozeDesc}
               </p>
               <div className="text-xs text-[#64748b] dark:text-[#94a3b8] font-mono tabular-nums pt-0.5 flex flex-wrap items-center gap-1.5">
-                <span>{filteredClozePassages.length} Paragraf</span>
+                <span>{shuffledClozePassages.length} Paragraf</span>
                 <span aria-hidden="true">·</span>
                 <span>5 Boşluk</span>
                 <span aria-hidden="true">·</span>
-                <span>Bağlam İpucu</span>
+                <span>Rastgele Seçim</span>
               </div>
             </div>
           </div>
 
           <button
             type="button"
-            onClick={() => startClozeTest(0)}
+            onClick={() => startClozeTest()}
             style={{ backgroundColor: '#2563eb', color: '#ffffff' }}
-            className="min-h-[44px] px-5 py-2.5 rounded-xl bg-[#2563eb] hover:bg-[#1d4ed8] text-[#ffffff] font-semibold text-xs sm:text-sm inline-flex items-center justify-center gap-2 shadow-xs transition-all cursor-pointer active:scale-95 shrink-0 whitespace-nowrap"
+            className="min-h-[44px] px-5 py-2.5 rounded-xl bg-[#2563eb] hover:bg-[#1d4ed8] text-[#ffffff] font-semibold text-xs sm:text-sm inline-flex items-center justify-center gap-2 border border-[#1d4ed8] transition-all cursor-pointer active:scale-95 shrink-0 whitespace-nowrap"
           >
             <span>Paragrafa Başla</span>
             <ArrowRight width={16} height={16} fill="none" stroke="#ffffff" className="w-4 h-4" />
