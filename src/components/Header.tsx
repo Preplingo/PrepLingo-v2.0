@@ -1,25 +1,18 @@
 import React from 'react';
-import { Moon, Sun, Plus, Heart, Info } from 'lucide-react';
+import { Moon, Sun, Plus } from 'lucide-react';
 import { AppLogo } from './AppLogo';
-import { PWAInstallButton } from './PWAInstallButton';
+import { SteamingCoffeeIcon } from './BuyCoffeeModal';
 
 interface HeaderProps {
-  totalWords: number;
-  favoritesCount: number;
-  showOnlyFavorites: boolean;
-  onToggleFavoritesOnly: () => void;
   onOpenAddWord: () => void;
-  onOpenAbout: () => void;
+  onOpenBuyCoffee: () => void;
   darkMode: boolean;
   onToggleDarkMode: () => void;
 }
 
 export const Header: React.FC<HeaderProps> = ({
-  favoritesCount,
-  showOnlyFavorites,
-  onToggleFavoritesOnly,
   onOpenAddWord,
-  onOpenAbout,
+  onOpenBuyCoffee,
   darkMode,
   onToggleDarkMode,
 }) => {
@@ -52,41 +45,9 @@ export const Header: React.FC<HeaderProps> = ({
           </div>
         </div>
 
-        {/* Right-Side Action Controls: strictly inside the viewport on all screens (360px+) */}
-        <div className="flex items-center gap-1 sm:gap-2 shrink-0">
-          {/* PWA Install Button (hidden if already installed or unsupported) */}
-          <PWAInstallButton />
-
-          {/* Kelime Defterim Heart Action Button */}
-          <button
-            type="button"
-            onClick={onToggleFavoritesOnly}
-            className={`min-h-[36px] min-w-[36px] sm:min-h-[40px] sm:min-w-[40px] px-2 sm:px-3 py-1.5 rounded-xl text-xs font-semibold flex items-center justify-center gap-1.5 transition-all border cursor-pointer ${
-              showOnlyFavorites
-                ? 'bg-[#fff1f2] dark:bg-[#4c0519] border-[#fb7185] text-[#be123c] dark:text-[#fda4af] shadow-2xs'
-                : 'bg-[#f8fafc] dark:bg-[#0f172a] border-[#e2e8f0] dark:border-[#334155] text-[#0f172a] dark:text-[#f8fafc] hover:bg-[#f1f5f9] dark:hover:bg-[#334155]'
-            }`}
-            title="Kelime Defterim (Favoriler)"
-            aria-label="Kelime defterim filtresini aç veya kapat"
-          >
-            <Heart
-              width={16}
-              height={16}
-              fill={showOnlyFavorites || favoritesCount > 0 ? '#f43f5e' : 'none'}
-              stroke={showOnlyFavorites || favoritesCount > 0 ? '#f43f5e' : '#475569'}
-              className={`w-4 h-4 transition-transform active:scale-125 ${
-                showOnlyFavorites || favoritesCount > 0 ? '' : 'dark:stroke-[#94a3b8]'
-              }`}
-            />
-            <span className="hidden sm:inline text-xs">Defterim</span>
-            {favoritesCount > 0 && (
-              <span className="text-[11px] font-mono font-bold text-[#e11d48] dark:text-[#fb7185]">
-                {favoritesCount > 99 ? '99+' : favoritesCount}
-              </span>
-            )}
-          </button>
-
-          {/* Add Custom Word Button (Icon on mobile, text on sm+) */}
+        {/* Right-Side Action Controls: Kelime Ekle, Gece/Gündüz Modu, and animated Coffee button */}
+        <div className="flex items-center gap-1.5 sm:gap-2 shrink-0">
+          {/* Add Custom Word Button (Icon on mobile, text on md+) */}
           <button
             type="button"
             onClick={onOpenAddWord}
@@ -103,23 +64,6 @@ export const Header: React.FC<HeaderProps> = ({
               className="w-4 h-4 shrink-0"
             />
             <span className="hidden md:inline" style={{ color: '#ffffff' }}>Kelime Ekle</span>
-          </button>
-
-          {/* About / Info Button */}
-          <button
-            type="button"
-            onClick={onOpenAbout}
-            className="min-h-[36px] min-w-[36px] sm:min-h-[40px] sm:min-w-[40px] p-2 rounded-xl text-[#475569] dark:text-[#f8fafc] bg-[#f8fafc] dark:bg-[#0f172a] hover:bg-[#f1f5f9] dark:hover:bg-[#334155] border border-[#e2e8f0] dark:border-[#334155] transition-colors flex items-center justify-center cursor-pointer"
-            title="PrepLingo Hakkında"
-            aria-label="PrepLingo Hakkında bilgi penceresini aç"
-          >
-            <Info
-              width={16}
-              height={16}
-              fill="none"
-              stroke="#4f46e5"
-              className="w-4 h-4 dark:stroke-[#818cf8]"
-            />
           </button>
 
           {/* Sleek Day / Night Theme Toggle */}
@@ -146,6 +90,21 @@ export const Header: React.FC<HeaderProps> = ({
                 <span className="hidden lg:inline text-xs font-semibold text-[#0f172a]">Gece</span>
               </>
             )}
+          </button>
+
+          {/* Warm Amber/Orange Animated Steaming Coffee Support Button */}
+          <button
+            type="button"
+            onClick={onOpenBuyCoffee}
+            style={{
+              backgroundColor: darkMode ? '#451a03' : '#fffbeb',
+              borderColor: darkMode ? '#d97706' : '#fbbf24',
+            }}
+            className="min-h-[40px] min-w-[40px] sm:min-h-[44px] sm:min-w-[44px] p-1.5 rounded-xl border-2 transition-all flex items-center justify-center cursor-pointer shadow-sm hover:scale-105 active:scale-95"
+            title="Bana Bir Kahve Ismarla"
+            aria-label="Bana Bir Kahve Ismarla"
+          >
+            <SteamingCoffeeIcon size={26} className="w-6 h-6 sm:w-[26px] sm:h-[26px] shrink-0" />
           </button>
         </div>
       </div>

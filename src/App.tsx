@@ -9,7 +9,7 @@ import { FavoritesView } from './components/FavoritesView';
 import { GamesView } from './components/GamesView';
 import { ProgressView } from './components/ProgressView';
 import { AddWordModal } from './components/AddWordModal';
-import { AboutModal } from './components/AboutModal';
+import { BuyCoffeeModal } from './components/BuyCoffeeModal';
 import { SplashScreen } from './components/SplashScreen';
 import { OfflineIndicator } from './components/OfflineIndicator';
 
@@ -159,9 +159,8 @@ export default function App() {
 
   // Active Bottom Nav Tab: 'dictionary' | 'flashcards' | 'favorites' | 'games' | 'progress'
   const [activeTab, setActiveTab] = useState<ActiveTab>('dictionary');
-  const [showOnlyFavorites, setShowOnlyFavorites] = useState(false);
   const [isAddWordOpen, setIsAddWordOpen] = useState(false);
-  const [isAboutOpen, setIsAboutOpen] = useState(false);
+  const [isCoffeeModalOpen, setIsCoffeeModalOpen] = useState(false);
   const [practiceWordId, setPracticeWordId] = useState<string | undefined>(undefined);
 
   // Sync favorites to localStorage with O(1) set operations
@@ -314,8 +313,6 @@ export default function App() {
     setActiveTab('games');
   };
 
-  // Active word list filtered by favorites if toggle is active
-  const displayedWords = showOnlyFavorites ? words.filter((w) => w.isFavorite) : words;
   const favoritesCount = words.filter((w) => w.isFavorite).length;
 
   return (
@@ -331,12 +328,8 @@ export default function App() {
 
       {/* Top Header */}
       <Header
-        totalWords={words.length}
-        favoritesCount={favoritesCount}
-        showOnlyFavorites={activeTab === 'favorites'}
-        onToggleFavoritesOnly={() => setActiveTab(activeTab === 'favorites' ? 'dictionary' : 'favorites')}
         onOpenAddWord={() => setIsAddWordOpen(true)}
-        onOpenAbout={() => setIsAboutOpen(true)}
+        onOpenBuyCoffee={() => setIsCoffeeModalOpen(true)}
         darkMode={darkMode}
         onToggleDarkMode={toggleDarkMode}
       />
@@ -347,7 +340,7 @@ export default function App() {
       <main className="flex-1 max-w-4xl w-full mx-auto px-4 sm:px-6 pt-6">
         {activeTab === 'dictionary' && (
           <DictionaryView
-            words={displayedWords}
+            words={words}
             onToggleFavorite={handleToggleFavorite}
             onUpdateStatus={handleUpdateStatus}
             onPracticeWord={handlePracticeWord}
@@ -407,10 +400,10 @@ export default function App() {
         onAddWord={handleAddWord}
       />
 
-      {/* About Modal */}
-      <AboutModal
-        isOpen={isAboutOpen}
-        onClose={() => setIsAboutOpen(false)}
+      {/* Buy Me a Coffee Modal */}
+      <BuyCoffeeModal
+        isOpen={isCoffeeModalOpen}
+        onClose={() => setIsCoffeeModalOpen(false)}
       />
 
       {/* Material 3 Bottom Navigation Bar */}

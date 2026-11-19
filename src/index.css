@@ -343,6 +343,36 @@ body {
   animation: preplingoSplashFloat 2.8s ease-in-out infinite;
 }
 
+@keyframes coffeeSteamRise {
+  0% {
+    opacity: 0;
+    transform: translateY(2.5px) scaleX(0.95);
+  }
+  30% {
+    opacity: 0.9;
+  }
+  70% {
+    opacity: 0.55;
+    transform: translateY(-2px) scaleX(1.06);
+  }
+  100% {
+    opacity: 0;
+    transform: translateY(-4.5px) scaleX(0.92);
+  }
+}
+
+.coffee-steam-1 {
+  animation: coffeeSteamRise 2.2s ease-in-out infinite;
+}
+
+.coffee-steam-2 {
+  animation: coffeeSteamRise 2.2s ease-in-out 0.65s infinite;
+}
+
+.coffee-steam-3 {
+  animation: coffeeSteamRise 2.2s ease-in-out 1.3s infinite;
+}
+
 /* Hide auto-injected Netlify free-plan badge and wrappers */
 [data-netlify-deploy-id],
 [data-netlify-badge],
