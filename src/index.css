@@ -1,7 +1,7 @@
 @import "tailwindcss";
 @custom-variant dark (&:where(.dark, .dark *));
 
-/* Legacy browser compatibility: override all Tailwind v4 oklch() palette tokens with standard sRGB HEX colors */
+/* Legacy browser compatibility: override all Tailwind v4 oklch() palette tokens with strict solid sRGB HEX colors */
 @theme {
   --color-black: #000000;
   --color-white: #ffffff;
@@ -47,8 +47,8 @@
   --color-amber-200: #fde68a;
   --color-amber-300: #fcd34d;
   --color-amber-400: #fbbf24;
-  --color-amber-500: #f59e0b;
-  --color-amber-600: #d97706;
+  --color-amber-500: #ff9800;
+  --color-amber-600: #e65100;
   --color-amber-700: #b45309;
   --color-amber-800: #92400e;
   --color-amber-900: #78350f;
@@ -66,26 +66,26 @@
   --color-yellow-900: #713f12;
   --color-yellow-950: #422006;
 
-  --color-green-50: #f0fdf4;
-  --color-green-100: #dcfce7;
-  --color-green-200: #bbf7d0;
-  --color-green-300: #86efac;
-  --color-green-400: #4ade80;
-  --color-green-500: #22c55e;
-  --color-green-600: #16a34a;
-  --color-green-700: #15803d;
-  --color-green-800: #166534;
-  --color-green-900: #14532d;
-  --color-green-950: #052e16;
+  --color-green-50: #e2f0d9;
+  --color-green-100: #c8e6c9;
+  --color-green-200: #a5d6a7;
+  --color-green-300: #81c784;
+  --color-green-400: #66bb6a;
+  --color-green-500: #4caf50;
+  --color-green-600: #388e3c;
+  --color-green-700: #2e7d32;
+  --color-green-800: #1b5e20;
+  --color-green-900: #0e2f0e;
+  --color-green-950: #081f08;
 
-  --color-emerald-50: #ecfdf5;
-  --color-emerald-100: #d1fae5;
-  --color-emerald-200: #a7f3d0;
+  --color-emerald-50: #e2f0d9;
+  --color-emerald-100: #c8e6c9;
+  --color-emerald-200: #81c784;
   --color-emerald-300: #6ee7b7;
   --color-emerald-400: #34d399;
   --color-emerald-500: #10b981;
-  --color-emerald-600: #16a34a;
-  --color-emerald-700: #15803d;
+  --color-emerald-600: #059669;
+  --color-emerald-700: #2e7d32;
   --color-emerald-800: #065f46;
   --color-emerald-900: #064e3b;
   --color-emerald-950: #022c22;
@@ -133,7 +133,7 @@
   --color-indigo-400: #818cf8;
   --color-indigo-500: #6366f1;
   --color-indigo-600: #4f46e5;
-  --color-indigo-700: #4338ca;
+  --color-indigo-700: #3f51b5;
   --color-indigo-800: #3730a3;
   --color-indigo-900: #312e81;
   --color-indigo-950: #1e1b4b;
@@ -175,124 +175,295 @@
   --color-rose-950: #4c0519;
 }
 
-/* Legacy gradient direction compatibility (avoid "in oklab" gradient interpolation) */
-@layer utilities {
-  .bg-gradient-to-r,
-  .bg-linear-to-r {
-    --tw-gradient-position: to right;
-    background-image: linear-gradient(to right, var(--tw-gradient-stops));
-  }
-
-  .bg-gradient-to-br,
-  .bg-linear-to-br {
-    --tw-gradient-position: to bottom right;
-    background-image: linear-gradient(to bottom right, var(--tw-gradient-stops));
-  }
-}
-
-/* Unlayered legacy browser HEX fallbacks (works even in browsers without CSS @layer or oklch support) */
+/* ============================================================================
+ * UNIVERSAL SOLID-HEX THEME TOKENS + STATIC FALLBACKS (Legacy Windows / Android)
+ * ============================================================================ */
 :root {
+  /* Light Mode: High-Contrast Matte Pistachio Green */
+  --pl-bg: #e2f0d9;
+  --pl-surface: #ffffff;
+  --pl-surface-alt: #f3f9ef;
+  --pl-border: #b4c6a6;
+  --pl-text: #0e2f0e;
+  --pl-text-secondary: #2d4a2d;
+  --pl-primary: #388e3c;
+  --pl-primary-hover: #2e7d32;
+  --pl-primary-text: #ffffff;
+  --pl-success-bg: #c8e6c9;
+  --pl-success-border: #81c784;
+  --pl-success-text: #0e2f0e;
+  --pl-coffee: #e65100;
+  --pl-coffee-bg: #fff3e0;
+  --pl-coffee-border: #e65100;
+
+  /* Core fallback tokens */
   --color-white: #ffffff;
   --color-black: #000000;
   --color-slate-900: #0f172a;
   --color-indigo-600: #4f46e5;
-  --color-green-600: #16a34a;
-  --color-emerald-600: #16a34a;
-  --color-amber-600: #d97706;
+  --color-green-600: #388e3c;
+  --color-emerald-600: #059669;
+  --color-amber-600: #e65100;
   --color-rose-600: #e11d48;
 }
 
-body {
-  background-color: #ecfdf5;
-  color: #0f172a;
+.dark {
+  /* Dark Mode: Deep Solid Navy & Slate */
+  --pl-bg: #0f172a;
+  --pl-surface: #1e293b;
+  --pl-surface-alt: #0f172a;
+  --pl-border: #334155;
+  --pl-text: #f8fafc;
+  --pl-text-secondary: #94a3b8;
+  --pl-primary: #4f46e5;
+  --pl-primary-hover: #3f51b5;
+  --pl-primary-text: #ffffff;
+  --pl-success-bg: #059669;
+  --pl-success-border: #10b981;
+  --pl-success-text: #ffffff;
+  --pl-coffee: #ff9800;
+  --pl-coffee-bg: #1e293b;
+  --pl-coffee-border: #ff9800;
 }
 
+/* Static HEX fallback first, CSS variable second for older browsers without var() support */
+html,
+body {
+  background-color: #e2f0d9;
+  background-color: var(--pl-bg);
+  color: #0e2f0e;
+  color: var(--pl-text);
+}
+
+.dark,
 .dark body {
   background-color: #0f172a;
+  background-color: var(--pl-bg);
   color: #f8fafc;
+  color: var(--pl-text);
 }
 
-/* Prominent Search Bar (Unlayered HEX + RGBA for full legacy browser compatibility) */
+/* ============================================================================
+ * SOLID BORDER DISCIPLINE: Replace box-shadow with crisp solid borders globally
+ * ============================================================================ */
+.shadow-2xs,
+.shadow-xs,
+.shadow-sm,
+.shadow,
+.shadow-md,
+.shadow-lg,
+.shadow-xl,
+.shadow-2xl {
+  box-shadow: none !important;
+}
+
+/* Light Mode Solid Pistachio Border & High-Contrast Forest Text Standardization */
+html:not(.dark) .border-\[\#e2e8f0\],
+html:not(.dark) .border-\[\#cbd5e1\],
+html:not(.dark) .border-\[\#f1f5f9\] {
+  border-color: #b4c6a6 !important;
+  border-color: var(--pl-border) !important;
+}
+
+html:not(.dark) .text-\[\#0f172a\] {
+  color: #0e2f0e !important;
+  color: var(--pl-text) !important;
+}
+
+html:not(.dark) .text-\[\#475569\],
+html:not(.dark) .text-\[\#334155\] {
+  color: #2d4a2d !important;
+  color: var(--pl-text-secondary) !important;
+}
+
+/* Light Mode Solid Positive / Correct Answer Highlights */
+html:not(.dark) .bg-\[\#ecfdf5\],
+html:not(.dark) .bg-\[\#dcfce7\] {
+  background-color: #c8e6c9 !important;
+  background-color: var(--pl-success-bg) !important;
+}
+
+html:not(.dark) .border-\[\#a7f3d0\],
+html:not(.dark) .border-\[\#16a34a\] {
+  border-color: #81c784 !important;
+  border-color: var(--pl-success-border) !important;
+}
+
+/* Dark Mode Solid Borders & High-Contrast Surfaces */
+.dark .dark\:border-\[\#334155\],
+.dark .dark\:border-\[\#475569\] {
+  border-color: #334155 !important;
+  border-color: var(--pl-border) !important;
+}
+
+.dark .dark\:bg-\[\#1e293b\] {
+  background-color: #1e293b !important;
+  background-color: var(--pl-surface) !important;
+}
+
+.dark .dark\:bg-\[\#0f172a\] {
+  background-color: #0f172a !important;
+  background-color: var(--pl-bg) !important;
+}
+
+.dark .dark\:text-\[\#f8fafc\] {
+  color: #f8fafc !important;
+  color: var(--pl-text) !important;
+}
+
+.dark .dark\:text-\[\#94a3b8\] {
+  color: #94a3b8 !important;
+  color: var(--pl-text-secondary) !important;
+}
+
+/* Dark Mode Solid Positive / Correct Feedback Highlights (#059669 & #10B981) */
+.dark .dark\:bg-\[\#022c22\],
+.dark .dark\:bg-\[\#064e3b\] {
+  background-color: #064e3b !important;
+  border-color: #10b981 !important;
+}
+
+/* Solid Modal Backdrop (Zero rgba(), zero opacity, zero backdrop-blur) */
+.preplingo-modal-backdrop {
+  background-color: #1e3322;
+}
+
+.dark .preplingo-modal-backdrop {
+  background-color: #020617;
+}
+
+/* Prominent Search Bar (Strict Solid HEX + 2px Solid Border, Zero RGBA/Shadow) */
 .preplingo-search-input {
   background-color: #ffffff;
-  color: #0f172a;
-  border: 2px solid #10b981;
-  box-shadow: 0 8px 24px -4px rgba(16, 185, 129, 0.18);
-  transition: border-color 0.2s ease, box-shadow 0.2s ease, background-color 0.2s ease;
+  background-color: var(--pl-surface);
+  color: #0e2f0e;
+  color: var(--pl-text);
+  border: 2px solid #388e3c;
+  border-color: var(--pl-primary);
+  box-shadow: none;
+  transition: border-color 0.15s ease, background-color 0.15s ease;
 }
 
 .preplingo-search-input::placeholder {
-  color: #64748b;
-  opacity: 1;
+  color: #2d4a2d;
+  color: var(--pl-text-secondary);
 }
 
 .preplingo-search-input:focus {
-  outline: none;
-  border-color: #059669;
-  box-shadow: 0 8px 24px -4px rgba(16, 185, 129, 0.18), 0 0 0 4px rgba(16, 185, 129, 0.25);
+  outline: 2px solid #2e7d32;
+  outline-offset: 0px;
+  border-color: #2e7d32;
+  border-color: var(--pl-primary-hover);
+  box-shadow: none;
 }
 
 .dark .preplingo-search-input {
   background-color: #1e293b;
+  background-color: var(--pl-surface);
   color: #f8fafc;
-  border: 2px solid #34d399;
-  box-shadow: 0 8px 24px -4px rgba(52, 211, 153, 0.18);
+  color: var(--pl-text);
+  border: 2px solid #4f46e5;
+  border-color: var(--pl-primary);
+  box-shadow: none;
 }
 
 .dark .preplingo-search-input::placeholder {
   color: #94a3b8;
-  opacity: 1;
+  color: var(--pl-text-secondary);
 }
 
 .dark .preplingo-search-input:focus {
-  outline: none;
-  border-color: #10b981;
-  box-shadow: 0 8px 24px -4px rgba(52, 211, 153, 0.24), 0 0 0 4px rgba(52, 211, 153, 0.25);
+  outline: 2px solid #3f51b5;
+  outline-offset: 0px;
+  border-color: #3f51b5;
+  border-color: var(--pl-primary-hover);
+  box-shadow: none;
 }
 
+/* Primary Action Buttons & Active Tabs:
+ * Light Mode: #388E3C (hover #2E7D32) with solid #2E7D32 border & #FFFFFF text
+ * Dark Mode:  #4F46E5 (hover #3F51B5) with solid #3F51B5 border & #FFFFFF text
+ */
 .legacy-btn-green {
-  background-color: #16a34a;
-  color: #ffffff;
+  background-color: #388e3c !important;
+  background-color: var(--pl-primary) !important;
+  color: #ffffff !important;
+  border: 1px solid #2e7d32 !important;
+  box-shadow: none !important;
 }
 
 .legacy-btn-green:hover {
-  background-color: #15803d;
+  background-color: #2e7d32 !important;
+  background-color: var(--pl-primary-hover) !important;
+}
+
+.dark .legacy-btn-green {
+  background-color: #4f46e5 !important;
+  background-color: var(--pl-primary) !important;
+  color: #ffffff !important;
+  border: 1px solid #3f51b5 !important;
+  box-shadow: none !important;
+}
+
+.dark .legacy-btn-green:hover {
+  background-color: #3f51b5 !important;
+  background-color: var(--pl-primary-hover) !important;
 }
 
 .legacy-btn-indigo {
-  background-color: #4f46e5;
-  color: #ffffff;
+  background-color: #4f46e5 !important;
+  color: #ffffff !important;
+  border: 1px solid #3f51b5 !important;
+  box-shadow: none !important;
 }
 
 .legacy-btn-indigo:hover {
-  background-color: #4338ca;
+  background-color: #3f51b5 !important;
 }
 
 .legacy-btn-dark {
-  background-color: #0f172a;
-  color: #ffffff;
+  background-color: #0e2f0e !important;
+  color: #ffffff !important;
+  border: 1px solid #0e2f0e !important;
+  box-shadow: none !important;
+}
+
+.dark .legacy-btn-dark {
+  background-color: #4f46e5 !important;
+  color: #ffffff !important;
+  border: 1px solid #3f51b5 !important;
 }
 
 .legacy-btn-green svg,
 .legacy-btn-indigo svg,
 .legacy-btn-dark svg {
-  stroke: #ffffff;
+  stroke: #ffffff !important;
 }
 
-/* Custom scrollbars for clean dictionary browsing */
+/* Custom Solid-HEX Scrollbars (Zero rgba) */
 ::-webkit-scrollbar {
   width: 6px;
   height: 6px;
 }
 ::-webkit-scrollbar-track {
-  background: transparent;
+  background: #e2f0d9;
 }
 ::-webkit-scrollbar-thumb {
-  background: rgba(148, 163, 184, 0.3);
+  background: #b4c6a6;
   border-radius: 9999px;
 }
 ::-webkit-scrollbar-thumb:hover {
-  background: rgba(148, 163, 184, 0.5);
+  background: #388e3c;
+}
+
+.dark ::-webkit-scrollbar-track {
+  background: #0f172a;
+}
+.dark ::-webkit-scrollbar-thumb {
+  background: #334155;
+}
+.dark ::-webkit-scrollbar-thumb:hover {
+  background: #4f46e5;
 }
 
 @keyframes shake {
@@ -309,21 +480,19 @@ body {
 
 @keyframes preplingoSplashFade {
   from {
-    opacity: 0;
-    transform: translateY(10px);
+    transform: translateY(8px);
   }
   to {
-    opacity: 1;
     transform: translateY(0);
   }
 }
 
 @keyframes preplingoSplashFloat {
   0%, 100% {
-    transform: translateY(0) scale(1);
+    transform: translateY(0);
   }
   50% {
-    transform: translateY(-5px) scale(1.03);
+    transform: translateY(-4px);
   }
 }
 
@@ -336,41 +505,33 @@ body {
 }
 
 .preplingo-splash-fade {
-  animation: preplingoSplashFade 0.5s ease-out both;
+  animation: preplingoSplashFade 0.45s ease-out both;
 }
 
 .preplingo-splash-float {
   animation: preplingoSplashFloat 2.8s ease-in-out infinite;
 }
 
+/* Solid-color gentle rising steam animation (zero opacity fade-out for legacy displays) */
 @keyframes coffeeSteamRise {
-  0% {
-    opacity: 0;
-    transform: translateY(2.5px) scaleX(0.95);
+  0%, 100% {
+    transform: translateY(1.5px);
   }
-  30% {
-    opacity: 0.9;
-  }
-  70% {
-    opacity: 0.55;
-    transform: translateY(-2px) scaleX(1.06);
-  }
-  100% {
-    opacity: 0;
-    transform: translateY(-4.5px) scaleX(0.92);
+  50% {
+    transform: translateY(-2.5px);
   }
 }
 
 .coffee-steam-1 {
-  animation: coffeeSteamRise 2.2s ease-in-out infinite;
+  animation: coffeeSteamRise 2s ease-in-out infinite;
 }
 
 .coffee-steam-2 {
-  animation: coffeeSteamRise 2.2s ease-in-out 0.65s infinite;
+  animation: coffeeSteamRise 2s ease-in-out 0.55s infinite;
 }
 
 .coffee-steam-3 {
-  animation: coffeeSteamRise 2.2s ease-in-out 1.3s infinite;
+  animation: coffeeSteamRise 2s ease-in-out 1.1s infinite;
 }
 
 /* Hide auto-injected Netlify free-plan badge and wrappers */
@@ -384,7 +545,6 @@ a[href*="netlify.com"],
 iframe[src*="netlify"] {
   display: none !important;
   visibility: hidden !important;
-  opacity: 0 !important;
   pointer-events: none !important;
   width: 0 !important;
   height: 0 !important;

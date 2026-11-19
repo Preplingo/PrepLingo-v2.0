@@ -10,18 +10,26 @@ import {
   ArrowUpDown,
   BookOpen,
   Mic,
+  TrendingUp,
 } from 'lucide-react';
 import { WordEntry, PartOfSpeech, CefrLevel, WordStatus } from '../types';
 import { VerbConjugationBadge } from '../utils/verbConjugation';
+import { ProgressView } from './ProgressView';
 
 interface FavoritesViewProps {
   words: WordEntry[];
   onToggleFavorite: (id: string) => void;
-  onUpdateStatus?: (id: string, status: WordStatus) => void;
+  onUpdateStatus: (id: string, status: WordStatus) => void;
   onPracticeWord?: (word: WordEntry) => void;
   onNavigateToDictionary?: () => void;
+  highScore: number;
+  classicBestTime: number | null;
+  newRecordFlags: { classic: boolean; timeAttack: boolean };
+  onClearNewRecordFlags: () => void;
+  onNavigateToTab: (tab: 'flashcards' | 'games') => void;
 }
 
+type FavoritesSubTab = 'saved' | 'progress';
 type FavPosFilter = 'all' | 'verb' | 'noun' | 'adj' | 'adv' | 'conjunction';
 type FavSortOption = 'recent' | 'alphabetical';
 
@@ -31,7 +39,13 @@ export const FavoritesView: React.FC<FavoritesViewProps> = ({
   onUpdateStatus,
   onPracticeWord,
   onNavigateToDictionary,
+  highScore,
+  classicBestTime,
+  newRecordFlags,
+  onClearNewRecordFlags,
+  onNavigateToTab,
 }) => {
+  const [subTab, setSubTab] = useState<FavoritesSubTab>('saved');
   const [posFilter, setPosFilter] = useState<FavPosFilter>('all');
   const [sortOption, setSortOption] = useState<FavSortOption>('recent');
   const [expandedCardId, setExpandedCardId] = useState<string | null>(null);
@@ -148,10 +162,87 @@ export const FavoritesView: React.FC<FavoritesViewProps> = ({
     { id: 'conjunction', label: 'Bağlaç' },
   ];
 
+  const hasNewRecord = Boolean(newRecordFlags.classic || newRecordFlags.timeAttack);
+
   return (
-    <div className="space-y-5 pb-24 animate-in fade-in duration-200">
-      {/* Top Header Card */}
-      <div className="bg-[#ffffff] dark:bg-[#1e293b] rounded-3xl p-5 sm:p-6 border border-[#fecdd3] dark:border-[#334155] shadow-xs">
+    <div className="space-y-5 animate-in fade-in duration-200">
+      {/* Top 2-Tab Segmented Switcher: Kayıtlı Kelimelerim | Gelişimim */}
+      <div
+        role="tablist"
+        aria-label="Defterim ve Gelişim sekmeleri"
+        className="max-w-3xl mx-auto p-1.5 rounded-2xl bg-[#ffffff] dark:bg-[#1e293b] border border-[#e2e8f0] dark:border-[#334155] shadow-xs grid grid-cols-2 gap-1.5"
+      >
+        <button
+          type="button"
+          role="tab"
+          aria-selected={subTab === 'saved'}
+          onClick={() => setSubTab('saved')}
+          style={subTab === 'saved' ? { backgroundColor: '#16a34a', color: '#ffffff' } : undefined}
+          className={`min-h-[44px] px-3 sm:px-4 py-2 rounded-xl text-xs sm:text-sm font-semibold flex items-center justify-center gap-2 transition-all cursor-pointer whitespace-nowrap ${
+            subTab === 'saved'
+              ? 'legacy-btn-green bg-[#16a34a] text-[#ffffff] shadow-xs'
+              : 'text-[#475569] dark:text-[#cbd5e1] hover:bg-[#f8fafc] dark:hover:bg-[#0f172a]'
+          }`}
+        >
+          <Heart
+            width={16}
+            height={16}
+            fill={subTab === 'saved' ? '#ffffff' : 'none'}
+            stroke={subTab === 'saved' ? '#ffffff' : '#f43f5e'}
+            className="w-4 h-4 shrink-0"
+          />
+          <span className="truncate">Kayıtlı Kelimelerim</span>
+          <span
+            className={`font-mono tabular-nums text-[11px] font-bold ${
+              subTab === 'saved' ? 'text-[#dcfce7]' : 'text-[#64748b] dark:text-[#94a3b8]'
+            }`}
+          >
+            ({favoriteWords.length})
+          </span>
+        </button>
+
+        <button
+          type="button"
+          role="tab"
+          aria-selected={subTab === 'progress'}
+          onClick={() => setSubTab('progress')}
+          style={subTab === 'progress' ? { backgroundColor: '#16a34a', color: '#ffffff' } : undefined}
+          className={`min-h-[44px] px-3 sm:px-4 py-2 rounded-xl text-xs sm:text-sm font-semibold flex items-center justify-center gap-2 transition-all cursor-pointer whitespace-nowrap ${
+            subTab === 'progress'
+              ? 'legacy-btn-green bg-[#16a34a] text-[#ffffff] shadow-xs'
+              : 'text-[#475569] dark:text-[#cbd5e1] hover:bg-[#f8fafc] dark:hover:bg-[#0f172a]'
+          }`}
+        >
+          <TrendingUp
+            width={16}
+            height={16}
+            fill="none"
+            stroke={subTab === 'progress' ? '#ffffff' : '#16a34a'}
+            className="w-4 h-4 shrink-0"
+          />
+          <span>Gelişimim</span>
+          {hasNewRecord && subTab !== 'progress' && (
+            <span className="text-[10px] font-bold text-[#d97706] dark:text-[#fbbf24]">
+              · Yeni Rekor
+            </span>
+          )}
+        </button>
+      </div>
+
+      {subTab === 'progress' ? (
+        <ProgressView
+          words={words}
+          highScore={highScore}
+          classicBestTime={classicBestTime}
+          newRecordFlags={newRecordFlags}
+          onClearNewRecordFlags={onClearNewRecordFlags}
+          onUpdateStatus={onUpdateStatus}
+          onNavigateToTab={onNavigateToTab}
+        />
+      ) : (
+        <div className="space-y-5 pb-24">
+          {/* Top Header Card */}
+          <div className="bg-[#ffffff] dark:bg-[#1e293b] rounded-3xl p-5 sm:p-6 border border-[#fecdd3] dark:border-[#334155] shadow-xs">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
           <div className="space-y-1">
             <div className="flex items-center gap-2.5">
@@ -486,6 +577,8 @@ export const FavoritesView: React.FC<FavoritesViewProps> = ({
               </article>
             );
           })}
+        </div>
+      )}
         </div>
       )}
     </div>

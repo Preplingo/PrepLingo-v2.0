@@ -7,7 +7,7 @@ import { DictionaryView } from './components/DictionaryView';
 import { FlashcardsView } from './components/FlashcardsView';
 import { FavoritesView } from './components/FavoritesView';
 import { GamesView } from './components/GamesView';
-import { ProgressView } from './components/ProgressView';
+import { ExercisesView } from './components/ExercisesView';
 import { AddWordModal } from './components/AddWordModal';
 import { AboutModal } from './components/AboutModal';
 import { BuyCoffeeModal } from './components/BuyCoffeeModal';
@@ -50,7 +50,7 @@ export default function App() {
     setShowSplash(false);
   };
 
-  // Theme state (Light Mode Soft Mint #ECFDF5 by default, persisted in localStorage)
+  // Theme state (Light Mode Matte Pistachio #E2F0D9 by default, Dark Mode Deep Navy #0F172A, persisted in localStorage)
   const [darkMode, setDarkMode] = useState<boolean>(() => {
     if (typeof window !== 'undefined') {
       const savedTheme = localStorage.getItem(STORAGE_KEY_THEME);
@@ -60,14 +60,17 @@ export default function App() {
     return false;
   });
 
-  // Apply dark mode class to html root
+  // Apply dark mode class to html root & sync browser theme-color
   useEffect(() => {
+    const themeMeta = document.querySelector('meta[name="theme-color"]');
     if (darkMode) {
       document.documentElement.classList.add('dark');
       localStorage.setItem(STORAGE_KEY_THEME, 'dark');
+      if (themeMeta) themeMeta.setAttribute('content', '#0F172A');
     } else {
       document.documentElement.classList.remove('dark');
       localStorage.setItem(STORAGE_KEY_THEME, 'light');
+      if (themeMeta) themeMeta.setAttribute('content', '#388E3C');
     }
   }, [darkMode]);
 
@@ -158,7 +161,7 @@ export default function App() {
     }));
   });
 
-  // Active Bottom Nav Tab: 'dictionary' | 'flashcards' | 'favorites' | 'games' | 'progress'
+  // Active Bottom Nav Tab: 'dictionary' | 'flashcards' | 'favorites' | 'games' | 'exercises'
   const [activeTab, setActiveTab] = useState<ActiveTab>('dictionary');
   const [isAddWordOpen, setIsAddWordOpen] = useState(false);
   const [isAboutOpen, setIsAboutOpen] = useState(false);
@@ -166,24 +169,36 @@ export default function App() {
   const [practiceWordId, setPracticeWordId] = useState<string | undefined>(undefined);
 
   // Sync favorites to localStorage with O(1) set operations
-  const handleToggleFavorite = (id: string) => {
+  const handleToggleFavorite = (id: string, fallbackEntry?: WordEntry) => {
     setWords((prev) => {
       const exists = prev.some((w) => w.id === id);
       let updated: WordEntry[];
       if (exists) {
         updated = prev.map((w) => (w.id === id ? { ...w, isFavorite: !w.isFavorite } : w));
       } else {
-        const cleanWord = id.replace(/^(ess|gen|online)_/, '').replace(/_/g, ' ');
-        const rawKey = id.replace(/^(ess|gen|online)_/, '');
-        const fallbackWord =
+        const cleanWord = id.replace(/^(ess|gen|online|elem)_/, '').replace(/_/g, ' ');
+        const rawKey = id.replace(/^(ess|gen|online|elem)_/, '');
+        const resolvedWord =
+          fallbackEntry ||
           findInEssentialFallback(cleanWord) ||
           findInEssentialFallback(rawKey) ||
           getCachedOnlineWord(cleanWord) ||
           getCachedOnlineWord(rawKey) ||
           findExactInGeneralDictionary(cleanWord) ||
           findExactInGeneralDictionary(rawKey);
-        if (fallbackWord) {
-          updated = deduplicateWordEntries([{ ...fallbackWord, isFavorite: true }, ...prev]);
+        if (resolvedWord) {
+          const entryToAdd: WordEntry = { ...resolvedWord, id: resolvedWord.id || id, isFavorite: true };
+          updated = deduplicateWordEntries([entryToAdd, ...prev]);
+          if (fallbackEntry) {
+            try {
+              const savedCustom = localStorage.getItem(STORAGE_KEY_CUSTOM_WORDS);
+              const customList: WordEntry[] = savedCustom ? JSON.parse(savedCustom) : [];
+              const updatedCustom = deduplicateWordEntries([entryToAdd, ...customList]);
+              localStorage.setItem(STORAGE_KEY_CUSTOM_WORDS, JSON.stringify(updatedCustom));
+            } catch {
+              // ignore
+            }
+          }
         } else {
           updated = prev;
         }
@@ -195,11 +210,27 @@ export default function App() {
   };
 
   // Batch-add multiple words to Defterim (favorites) without toggling off existing favorites
-  const handleAddWordsToFavorites = (wordIds: string[]) => {
+  const handleAddWordsToFavorites = (wordIds: string[], fallbackEntries?: WordEntry[]) => {
     if (!wordIds || wordIds.length === 0) return;
     const idSet = new Set(wordIds);
     setWords((prev) => {
-      const updated = prev.map((w) => (idSet.has(w.id) ? { ...w, isFavorite: true } : w));
+      const existingIds = new Set(prev.map((w) => w.id));
+      const newFallbacks = (fallbackEntries || [])
+        .filter((entry) => idSet.has(entry.id) && !existingIds.has(entry.id))
+        .map((entry) => ({ ...entry, isFavorite: true }));
+
+      let updated = prev.map((w) => (idSet.has(w.id) ? { ...w, isFavorite: true } : w));
+      if (newFallbacks.length > 0) {
+        updated = deduplicateWordEntries([...newFallbacks, ...updated]);
+        try {
+          const savedCustom = localStorage.getItem(STORAGE_KEY_CUSTOM_WORDS);
+          const customList: WordEntry[] = savedCustom ? JSON.parse(savedCustom) : [];
+          const updatedCustom = deduplicateWordEntries([...newFallbacks, ...customList]);
+          localStorage.setItem(STORAGE_KEY_CUSTOM_WORDS, JSON.stringify(updatedCustom));
+        } catch {
+          // ignore
+        }
+      }
       const favIds = updated.filter((w) => w.isFavorite).map((w) => w.id);
       localStorage.setItem(STORAGE_KEY_FAVS, JSON.stringify(favIds));
       return updated;
@@ -320,13 +351,13 @@ export default function App() {
   return (
     <div
       style={{
-        backgroundColor: darkMode ? '#0f172a' : '#ecfdf5',
-        color: darkMode ? '#f8fafc' : '#0f172a',
+        backgroundColor: darkMode ? '#0F172A' : '#E2F0D9',
+        color: darkMode ? '#F8FAFC' : '#0E2F0E',
       }}
-      className="min-h-screen overflow-x-hidden bg-[#ecfdf5] dark:bg-[#0f172a] text-[#0f172a] dark:text-[#f8fafc] flex flex-col font-['Plus_Jakarta_Sans',sans-serif] transition-colors"
+      className="min-h-screen overflow-x-hidden bg-[#E2F0D9] dark:bg-[#0F172A] text-[#0E2F0E] dark:text-[#F8FAFC] flex flex-col font-['Plus_Jakarta_Sans',sans-serif] transition-colors"
     >
       {/* Animated Splash Screen on first load (3.5s) */}
-      {showSplash && <SplashScreen onComplete={handleSplashComplete} durationMs={3500} />}
+      {showSplash && <SplashScreen onComplete={handleSplashComplete} durationMs={3500} darkMode={darkMode} />}
 
       {/* Top Header */}
       <Header
@@ -365,6 +396,11 @@ export default function App() {
             onUpdateStatus={handleUpdateStatus}
             onPracticeWord={handlePracticeWord}
             onNavigateToDictionary={() => setActiveTab('dictionary')}
+            highScore={highScore}
+            classicBestTime={classicBestTime}
+            newRecordFlags={newRecordFlags}
+            onClearNewRecordFlags={handleClearNewRecordFlags}
+            onNavigateToTab={(tab) => setActiveTab(tab)}
           />
         )}
 
@@ -383,15 +419,11 @@ export default function App() {
           />
         )}
 
-        {activeTab === 'progress' && (
-          <ProgressView
+        {activeTab === 'exercises' && (
+          <ExercisesView
             words={words}
-            highScore={highScore}
-            classicBestTime={classicBestTime}
-            newRecordFlags={newRecordFlags}
-            onClearNewRecordFlags={handleClearNewRecordFlags}
-            onUpdateStatus={handleUpdateStatus}
-            onNavigateToTab={(tab) => setActiveTab(tab)}
+            onToggleFavorite={handleToggleFavorite}
+            onAddWordsToFavorites={handleAddWordsToFavorites}
           />
         )}
       </main>
@@ -413,6 +445,7 @@ export default function App() {
       <BuyCoffeeModal
         isOpen={isCoffeeModalOpen}
         onClose={() => setIsCoffeeModalOpen(false)}
+        darkMode={darkMode}
       />
 
       {/* Material 3 Bottom Navigation Bar */}

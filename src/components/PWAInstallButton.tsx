@@ -100,11 +100,11 @@ export const PWAInstallButton: React.FC = () => {
             role="dialog"
             aria-modal="true"
             aria-labelledby="ios-install-title"
-            className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-[#020617]/60 backdrop-blur-sm animate-in fade-in duration-200"
+            className="preplingo-modal-backdrop fixed inset-0 z-50 flex items-center justify-center p-4"
             onClick={() => setShowIOSGuide(false)}
           >
             <div
-              className="relative w-full max-w-sm bg-[#ffffff] dark:bg-[#1e293b] rounded-3xl p-6 shadow-2xl border border-[#e2e8f0] dark:border-[#334155] space-y-4 animate-in zoom-in-95 duration-200"
+              className="relative w-full max-w-sm bg-[#FFFFFF] dark:bg-[#1E293B] rounded-3xl p-6 border-2 border-[#B4C6A6] dark:border-[#334155] space-y-4"
               onClick={(e) => e.stopPropagation()}
             >
               <button

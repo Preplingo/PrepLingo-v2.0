@@ -5,11 +5,13 @@ import { AppLogo } from './AppLogo';
 interface SplashScreenProps {
   onComplete: () => void;
   durationMs?: number;
+  darkMode?: boolean;
 }
 
 export const SplashScreen: React.FC<SplashScreenProps> = ({
   onComplete,
-  durationMs = 3500, // 3.5 seconds per user specification
+  durationMs = 3500,
+  darkMode = false,
 }) => {
   const [isExiting, setIsExiting] = useState(false);
   const [progress, setProgress] = useState(0);
@@ -25,8 +27,7 @@ export const SplashScreen: React.FC<SplashScreenProps> = ({
       const rawPct = Math.min(100, (elapsed / durationMs) * 100);
       setProgress(rawPct);
 
-      // Start fade-out 350ms before duration completes
-      if (elapsed >= durationMs - 350 && !isExiting) {
+      if (elapsed >= durationMs - 250 && !isExiting) {
         setIsExiting(true);
       }
 
@@ -50,16 +51,24 @@ export const SplashScreen: React.FC<SplashScreenProps> = ({
     setIsExiting(true);
     setTimeout(() => {
       onComplete();
-    }, 200);
+    }, 150);
   };
+
+  const bgHex = darkMode ? '#0F172A' : '#E2F0D9';
+  const surfaceHex = darkMode ? '#1E293B' : '#FFFFFF';
+  const borderHex = darkMode ? '#334155' : '#B4C6A6';
+  const textHex = darkMode ? '#F8FAFC' : '#0E2F0E';
+  const secondaryTextHex = darkMode ? '#94A3B8' : '#2D4A2D';
+  const accentHex = darkMode ? '#4F46E5' : '#388E3C';
+  const trackHex = darkMode ? '#1E293B' : '#C8E6C9';
 
   return (
     <div
       role="dialog"
       aria-label="PrepLingo Açılış Ekranı"
-      style={{ backgroundColor: '#ECFDF5', color: '#0F172A' }}
-      className={`fixed inset-0 z-50 flex flex-col items-center justify-center bg-[#ECFDF5] text-[#0F172A] select-none transition-all duration-400 ease-out ${
-        isExiting ? 'opacity-0 scale-95 pointer-events-none' : 'opacity-100 scale-100'
+      style={{ backgroundColor: bgHex, color: textHex }}
+      className={`fixed inset-0 z-50 flex flex-col items-center justify-center select-none transition-transform duration-300 ease-out ${
+        isExiting ? 'scale-95 pointer-events-none' : 'scale-100'
       }`}
     >
       {/* Top-Right "Geç ›" (Skip) Button */}
@@ -67,8 +76,8 @@ export const SplashScreen: React.FC<SplashScreenProps> = ({
         <button
           type="button"
           onClick={handleSkip}
-          style={{ backgroundColor: '#FFFFFF', color: '#0F172A', borderColor: '#A7F3D0' }}
-          className="px-4 py-1.5 rounded-full bg-[#ffffff] hover:bg-[#d1fae5] active:scale-95 text-xs text-[#0f172a] font-semibold border border-[#a7f3d0] transition-all flex items-center gap-1 cursor-pointer shadow-xs group"
+          style={{ backgroundColor: surfaceHex, color: textHex, borderColor: borderHex }}
+          className="px-4 py-1.5 rounded-full active:scale-95 text-xs font-semibold border transition-colors flex items-center gap-1 cursor-pointer group"
           title="Açılış ekranını geç"
         >
           <span>Geç</span>
@@ -76,50 +85,41 @@ export const SplashScreen: React.FC<SplashScreenProps> = ({
             width={14}
             height={14}
             fill="none"
-            stroke="#16a34a"
+            stroke={accentHex}
             className="w-3.5 h-3.5 group-hover:translate-x-0.5 transition-transform"
           />
         </button>
       </div>
 
-      {/* Subtle Soft-Mint Ambient Glows (Solid HEX + CSS Blur, Zero oklch) */}
-      <div
-        className="absolute top-1/4 -left-24 w-80 h-80 rounded-full blur-3xl pointer-events-none opacity-60 animate-pulse"
-        style={{ backgroundColor: '#D1FAE5' }}
-      />
-      <div
-        className="absolute bottom-1/4 -right-24 w-80 h-80 rounded-full blur-3xl pointer-events-none opacity-60 animate-pulse"
-        style={{ backgroundColor: '#A7F3D0' }}
-      />
-
       {/* Main Branding Container */}
       <div className="preplingo-splash-fade relative z-10 flex flex-col items-center text-center px-6 max-w-md mx-auto">
-        {/* Prominent Vector SVG Logo with Gentle Float & Pulse */}
+        {/* Prominent Vector SVG Logo with Gentle Float */}
         <div className="mb-6 relative">
           <div className="preplingo-splash-float">
             <AppLogo size={108} animate={false} />
           </div>
-          <div
-            className="absolute -inset-3 rounded-full blur-lg pointer-events-none -z-10 opacity-75 animate-pulse"
-            style={{ backgroundColor: '#A7F3D0' }}
-          />
         </div>
 
         {/* Title: "PrepLingo" */}
-        <h1 className="font-['Outfit'] font-extrabold text-4xl sm:text-5xl tracking-tight text-[#0F172A]">
+        <h1
+          style={{ color: textHex }}
+          className="font-['Outfit'] font-extrabold text-4xl sm:text-5xl tracking-tight"
+        >
           PrepLingo
         </h1>
 
-        {/* Clean, Readable Subtitle Card Directly Under Title */}
+        {/* Clean, Solid-Bordered Subtitle Card Directly Under Title */}
         <div
           style={{
-            backgroundColor: '#FFFFFF',
-            borderColor: '#A7F3D0',
-            boxShadow: '0 8px 24px -6px rgba(16, 185, 129, 0.14)',
+            backgroundColor: surfaceHex,
+            borderColor: borderHex,
           }}
-          className="mt-4 px-5 py-3 rounded-2xl bg-[#ffffff] border border-[#a7f3d0] flex items-start gap-2.5 text-center"
+          className="mt-4 px-5 py-3 rounded-2xl border flex items-start gap-2.5 text-center"
         >
-          <p className="text-xs sm:text-sm font-semibold text-[#475569] leading-relaxed">
+          <p
+            style={{ color: secondaryTextHex }}
+            className="text-xs sm:text-sm font-semibold leading-relaxed"
+          >
             Üniversite Hazırlık, YDS/IELTS/TOEFL ve Tüm İngilizce Öğrenenler İçin Sözlük &amp; Çalışma Platformu
           </p>
         </div>
@@ -127,17 +127,22 @@ export const SplashScreen: React.FC<SplashScreenProps> = ({
         {/* Smooth 0% to 100% Linear Loading Progress Bar */}
         <div className="mt-8 w-56 space-y-2">
           <div
-            style={{ backgroundColor: '#D1FAE5', borderColor: '#A7F3D0' }}
-            className="w-full bg-[#d1fae5] h-2 rounded-full overflow-hidden p-0.5 border border-[#a7f3d0]"
+            style={{ backgroundColor: trackHex, borderColor: borderHex }}
+            className="w-full h-2.5 rounded-full overflow-hidden p-0.5 border"
           >
             <div
-              style={{ width: `${progress}%`, backgroundColor: '#16A34A' }}
-              className="bg-[#16a34a] h-full rounded-full transition-all duration-75 ease-linear"
+              style={{ width: `${progress}%`, backgroundColor: accentHex }}
+              className="h-full rounded-full transition-all duration-75 ease-linear"
             />
           </div>
-          <div className="flex items-center justify-between text-[11px] text-[#475569] font-mono px-0.5">
+          <div
+            style={{ color: secondaryTextHex }}
+            className="flex items-center justify-between text-[11px] font-mono px-0.5"
+          >
             <span>Hazırlanıyor...</span>
-            <span className="text-[#16a34a] font-bold">%{Math.round(progress)}</span>
+            <span style={{ color: accentHex }} className="font-bold">
+              %{Math.round(progress)}
+            </span>
           </div>
         </div>
 
@@ -145,7 +150,8 @@ export const SplashScreen: React.FC<SplashScreenProps> = ({
         <button
           type="button"
           onClick={handleSkip}
-          className="mt-5 text-[11px] font-medium text-[#475569] hover:text-[#16a34a] transition-colors cursor-pointer"
+          style={{ color: secondaryTextHex }}
+          className="mt-5 text-[11px] font-semibold transition-colors cursor-pointer"
         >
           Beklemek istemiyorsanız dokunun
         </button>

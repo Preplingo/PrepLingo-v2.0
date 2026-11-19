@@ -52,5 +52,5 @@ export interface WordEntry {
 
 export type CefrFilter = 'Tümü' | 'A1-A2' | 'B1-B2';
 export type PosFilter = 'all' | 'noun' | 'verb' | 'adjective' | 'adverb';
-export type ActiveTab = 'dictionary' | 'flashcards' | 'favorites' | 'games' | 'progress';
+export type ActiveTab = 'dictionary' | 'flashcards' | 'favorites' | 'games' | 'exercises';
 export type GameMode = 'speed-match' | 'speaking-check';

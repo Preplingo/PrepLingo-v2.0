@@ -50,8 +50,8 @@ export const AddWordModal: React.FC<AddWordModalProps> = ({ isOpen, onClose, onA
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-[#000000]/60 backdrop-blur-xs animate-in fade-in duration-150">
-      <div className="bg-[#ffffff] dark:bg-[#1e293b] rounded-3xl w-full max-w-lg overflow-hidden border border-[#e2e8f0] dark:border-[#334155] shadow-2xl space-y-4 max-h-[90vh] flex flex-col">
+    <div className="preplingo-modal-backdrop fixed inset-0 z-50 flex items-center justify-center p-4">
+      <div className="bg-[#FFFFFF] dark:bg-[#1E293B] rounded-3xl w-full max-w-lg overflow-hidden border-2 border-[#B4C6A6] dark:border-[#334155] space-y-4 max-h-[90vh] flex flex-col">
         {/* Modal Header */}
         <div className="px-6 py-4 border-b border-[#f1f5f9] dark:border-[#334155] flex items-center justify-between">
           <div className="flex items-center gap-2">

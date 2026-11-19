@@ -19,7 +19,13 @@ export const Header: React.FC<HeaderProps> = ({
   onToggleDarkMode,
 }) => {
   return (
-    <header className="sticky top-0 z-30 w-full bg-[#ffffff] dark:bg-[#1e293b] border-b border-[#e2e8f0] dark:border-[#334155] shadow-2xs transition-colors overflow-x-hidden">
+    <header
+      style={{
+        backgroundColor: darkMode ? '#1E293B' : '#FFFFFF',
+        borderBottomColor: darkMode ? '#334155' : '#B4C6A6',
+      }}
+      className="sticky top-0 z-30 w-full bg-[#FFFFFF] dark:bg-[#1E293B] border-b border-[#B4C6A6] dark:border-[#334155] transition-colors overflow-x-hidden"
+    >
       <div className="max-w-6xl mx-auto px-3 sm:px-6 h-16 flex items-center justify-between gap-2 sm:gap-4">
         {/* Brand & Wordmark (clean and compact, min-w-0 for long subtitle safety) */}
         <div className="flex items-center gap-2.5 min-w-0">
@@ -29,32 +35,31 @@ export const Header: React.FC<HeaderProps> = ({
           <div className="min-w-0">
             <div className="flex items-center gap-2">
               <div className="flex items-center gap-1.5 shrink-0">
-                <span className="font-['Outfit'] font-bold text-lg sm:text-xl tracking-tight text-[#0f172a] dark:text-[#f8fafc] shrink-0">
+                <span className="font-['Outfit'] font-bold text-lg sm:text-xl tracking-tight text-[#0E2F0E] dark:text-[#F8FAFC] shrink-0">
                   PrepLingo
                 </span>
-                <span className="inline-flex items-center px-1.5 py-0.5 rounded-md text-[10px] leading-none font-mono font-semibold tracking-tight text-[#475569] dark:text-[#94a3b8] bg-[#f8fafc] dark:bg-[#0f172a] border border-[#e2e8f0] dark:border-[#334155] shrink-0 select-none">
+                <span className="inline-flex items-center px-1.5 py-0.5 rounded-md text-[10px] leading-none font-mono font-semibold tracking-tight text-[#0E2F0E] dark:text-[#94A3B8] bg-[#E2F0D9] dark:bg-[#0F172A] border border-[#B4C6A6] dark:border-[#334155] shrink-0 select-none">
                   v2.0
                 </span>
               </div>
               {/* Subtitle badge: hidden on mobile, visible on sm and up */}
-              <span className="hidden sm:inline-block text-[11px] font-semibold uppercase tracking-wider text-[#047857] dark:text-[#6ee7b7] bg-[#ecfdf5] dark:bg-[#064e3b] px-2.5 py-0.5 rounded-full border border-[#a7f3d0] dark:border-[#059669] shrink-0">
+              <span className="hidden sm:inline-block text-[11px] font-semibold uppercase tracking-wider text-[#0E2F0E] dark:text-[#FFFFFF] bg-[#C8E6C9] dark:bg-[#059669] px-2.5 py-0.5 rounded-full border border-[#81C784] dark:border-[#10B981] shrink-0">
                 AKADEMİK &amp; GENEL SÖZLÜK
               </span>
             </div>
-            <p className="text-xs text-[#475569] dark:text-[#94a3b8] hidden md:block truncate">
+            <p className="text-xs text-[#2D4A2D] dark:text-[#94A3B8] hidden md:block truncate">
               Üniversite Hazırlık, YDS/IELTS/TOEFL ve Tüm İngilizce Öğrenenler İçin Sözlük &amp; Çalışma Platformu
             </p>
           </div>
         </div>
 
-        {/* Right-Side Action Controls: Kelime Ekle, Gece/Gündüz Modu, and animated Coffee button */}
+        {/* Right-Side Action Controls: Kelime Ekle, Bilgi, Gece/Gündüz Modu, and animated Coffee button */}
         <div className="flex items-center gap-1.5 sm:gap-2 shrink-0">
           {/* Add Custom Word Button (Icon on mobile, text on md+) */}
           <button
             type="button"
             onClick={onOpenAddWord}
-            style={{ backgroundColor: '#16a34a', color: '#ffffff' }}
-            className="legacy-btn-green min-h-[36px] min-w-[36px] sm:min-h-[40px] sm:min-w-[40px] px-2 sm:px-3.5 py-1.5 rounded-xl text-xs font-semibold bg-[#16a34a] hover:bg-[#15803d] active:scale-95 text-[#ffffff] border border-[#15803d] flex items-center justify-center gap-1.5 shadow-2xs transition-all cursor-pointer"
+            className="legacy-btn-green min-h-[36px] min-w-[36px] sm:min-h-[40px] sm:min-w-[40px] px-2 sm:px-3.5 py-1.5 rounded-xl text-xs font-semibold bg-[#388E3C] hover:bg-[#2E7D32] dark:bg-[#4F46E5] dark:hover:bg-[#3F51B5] active:scale-95 text-[#FFFFFF] border border-[#2E7D32] dark:border-[#3F51B5] flex items-center justify-center gap-1.5 transition-all cursor-pointer"
             title="Yeni Kelime Ekle"
             aria-label="Yeni kelime ekle"
           >
@@ -62,17 +67,21 @@ export const Header: React.FC<HeaderProps> = ({
               width={16}
               height={16}
               fill="none"
-              stroke="#ffffff"
+              stroke="#FFFFFF"
               className="w-4 h-4 shrink-0"
             />
-            <span className="hidden md:inline" style={{ color: '#ffffff' }}>Kelime Ekle</span>
+            <span className="hidden md:inline text-[#FFFFFF]">Kelime Ekle</span>
           </button>
 
           {/* About / Info Button */}
           <button
             type="button"
             onClick={onOpenAbout}
-            className="min-h-[36px] min-w-[36px] sm:min-h-[40px] sm:min-w-[40px] p-2 rounded-xl text-[#475569] dark:text-[#f8fafc] bg-[#f8fafc] dark:bg-[#0f172a] hover:bg-[#f1f5f9] dark:hover:bg-[#334155] border border-[#e2e8f0] dark:border-[#334155] transition-colors flex items-center justify-center cursor-pointer"
+            style={{
+              backgroundColor: darkMode ? '#0F172A' : '#FFFFFF',
+              borderColor: darkMode ? '#334155' : '#B4C6A6',
+            }}
+            className="min-h-[36px] min-w-[36px] sm:min-h-[40px] sm:min-w-[40px] p-2 rounded-xl text-[#0E2F0E] dark:text-[#F8FAFC] bg-[#FFFFFF] dark:bg-[#0F172A] hover:bg-[#E2F0D9] dark:hover:bg-[#334155] border border-[#B4C6A6] dark:border-[#334155] transition-colors flex items-center justify-center cursor-pointer"
             title="PrepLingo Hakkında"
             aria-label="PrepLingo Hakkında bilgi penceresini aç"
           >
@@ -80,8 +89,8 @@ export const Header: React.FC<HeaderProps> = ({
               width={16}
               height={16}
               fill="none"
-              stroke="#4f46e5"
-              className="w-4 h-4 dark:stroke-[#818cf8]"
+              stroke={darkMode ? '#94A3B8' : '#2E7D32'}
+              className="w-4 h-4"
             />
           </button>
 
@@ -90,40 +99,44 @@ export const Header: React.FC<HeaderProps> = ({
             type="button"
             onClick={onToggleDarkMode}
             style={{
-              backgroundColor: darkMode ? '#0f172a' : '#ecfdf5',
-              color: darkMode ? '#f8fafc' : '#0f172a',
-              borderColor: darkMode ? '#334155' : '#a7f3d0',
+              backgroundColor: darkMode ? '#0F172A' : '#E2F0D9',
+              color: darkMode ? '#F8FAFC' : '#0E2F0E',
+              borderColor: darkMode ? '#334155' : '#B4C6A6',
             }}
-            className="min-h-[36px] min-w-[36px] sm:min-h-[40px] sm:px-3 p-2 rounded-xl border transition-all flex items-center justify-center gap-1.5 cursor-pointer shadow-2xs active:scale-95"
-            title={darkMode ? 'Gündüz Moduna Geç (Yumuşak Nane)' : 'Gece Moduna Geç (Koyu Arduvaz)'}
+            className="min-h-[36px] min-w-[36px] sm:min-h-[40px] sm:px-3 p-2 rounded-xl border transition-all flex items-center justify-center gap-1.5 cursor-pointer active:scale-95"
+            title={darkMode ? 'Gündüz Moduna Geç (Fıstık Yeşili)' : 'Gece Moduna Geç (Koyu Mavi)'}
             aria-label={darkMode ? 'Gündüz Moduna Geç' : 'Gece Moduna Geç'}
           >
             {darkMode ? (
               <>
-                <Sun width={16} height={16} fill="none" stroke="#fbbf24" className="w-4 h-4 shrink-0" />
-                <span className="hidden lg:inline text-xs font-semibold text-[#f8fafc]">Gündüz</span>
+                <Sun width={16} height={16} fill="none" stroke="#FF9800" className="w-4 h-4 shrink-0" />
+                <span className="hidden lg:inline text-xs font-semibold text-[#F8FAFC]">Gündüz</span>
               </>
             ) : (
               <>
-                <Moon width={16} height={16} fill="none" stroke="#0f172a" className="w-4 h-4 shrink-0" />
-                <span className="hidden lg:inline text-xs font-semibold text-[#0f172a]">Gece</span>
+                <Moon width={16} height={16} fill="none" stroke="#0E2F0E" className="w-4 h-4 shrink-0" />
+                <span className="hidden lg:inline text-xs font-semibold text-[#0E2F0E]">Gece</span>
               </>
             )}
           </button>
 
-          {/* Warm Amber/Orange Animated Steaming Coffee Support Button */}
+          {/* High-Contrast Solid Animated Steaming Coffee Support Button (#E65100 light / #FF9800 dark) */}
           <button
             type="button"
             onClick={onOpenBuyCoffee}
             style={{
-              backgroundColor: darkMode ? '#451a03' : '#fffbeb',
-              borderColor: darkMode ? '#d97706' : '#fbbf24',
+              backgroundColor: darkMode ? '#0F172A' : '#FFF3E0',
+              borderColor: darkMode ? '#FF9800' : '#E65100',
             }}
-            className="min-h-[40px] min-w-[40px] sm:min-h-[44px] sm:min-w-[44px] p-1.5 rounded-xl border-2 transition-all flex items-center justify-center cursor-pointer shadow-sm hover:scale-105 active:scale-95"
+            className="min-h-[40px] min-w-[40px] sm:min-h-[44px] sm:min-w-[44px] p-1.5 rounded-xl border-2 transition-all flex items-center justify-center cursor-pointer hover:scale-105 active:scale-95"
             title="Bana Bir Kahve Ismarla"
             aria-label="Bana Bir Kahve Ismarla"
           >
-            <SteamingCoffeeIcon size={26} className="w-6 h-6 sm:w-[26px] sm:h-[26px] shrink-0" />
+            <SteamingCoffeeIcon
+              size={26}
+              darkMode={darkMode}
+              className="w-6 h-6 sm:w-[26px] sm:h-[26px] shrink-0"
+            />
           </button>
         </div>
       </div>

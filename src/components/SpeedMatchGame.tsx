@@ -1346,8 +1346,8 @@ export const SpeedMatchGame: React.FC<SpeedMatchGameProps> = ({
 
       {/* 3. Dynamic Mistake-Aware Round Summary & Next-Step Modal */}
       {gameState === 'round_completed' && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-[#0f172a]/70 backdrop-blur-sm animate-in fade-in duration-200">
-          <div className="relative w-full max-w-md max-h-[90vh] overflow-y-auto bg-[#ffffff] dark:bg-[#1e293b] rounded-3xl p-5 sm:p-7 border border-[#e2e8f0] dark:border-[#334155] shadow-2xl text-center space-y-5 animate-in zoom-in-95 duration-200">
+        <div className="preplingo-modal-backdrop fixed inset-0 z-50 flex items-center justify-center p-4">
+          <div className="relative w-full max-w-md max-h-[90vh] overflow-y-auto bg-[#FFFFFF] dark:bg-[#1E293B] rounded-3xl p-5 sm:p-7 border-2 border-[#B4C6A6] dark:border-[#334155] text-center space-y-5">
             {/* Subtle Close Button to return to deck/mode settings */}
             <button
               type="button"

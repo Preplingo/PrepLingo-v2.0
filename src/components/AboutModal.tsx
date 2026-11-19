@@ -58,11 +58,11 @@ export const AboutModal: React.FC<AboutModalProps> = ({ isOpen, onClose }) => {
       role="dialog"
       aria-modal="true"
       aria-labelledby="about-modal-title"
-      className="fixed inset-0 z-50 flex items-center justify-center p-4 sm:p-6 bg-[#020617]/60 backdrop-blur-sm animate-in fade-in duration-200"
+      className="preplingo-modal-backdrop fixed inset-0 z-50 flex items-center justify-center p-4 sm:p-6"
       onClick={onClose}
     >
       <div
-        className="relative w-full max-w-xl max-h-[90vh] bg-[#ffffff] dark:bg-[#1e293b] rounded-3xl p-6 sm:p-8 shadow-2xl border border-[#e2e8f0] dark:border-[#334155] overflow-y-auto animate-in zoom-in-95 duration-200 space-y-5"
+        className="relative w-full max-w-xl max-h-[90vh] bg-[#FFFFFF] dark:bg-[#1E293B] rounded-3xl p-6 sm:p-8 border-2 border-[#B4C6A6] dark:border-[#334155] overflow-y-auto space-y-5"
         onClick={(e) => e.stopPropagation()}
       >
         {/* Close Button */}

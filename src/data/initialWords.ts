@@ -124,7 +124,11 @@ export function deduplicateWordEntries(entries: any[]): WordEntry[] {
           ? 'adverb'
           : normalizedType;
 
-      const level = (w.level || w.cefrLevel || 'A1') as CefrLevel;
+      const rawLevel = String(w.level || w.cefrLevel || 'A1').trim();
+      const level: CefrLevel =
+        rawLevel === 'A1' || rawLevel === 'A2' || rawLevel === 'B1' || rawLevel === 'B2' || rawLevel === 'Genel'
+          ? (rawLevel as CefrLevel)
+          : 'B2';
       const trMeaning = (w.trMeaning || w.meaning || '').trim();
       const enExample = (w.enExample || w.exampleEn || '').trim();
       const trExample = (w.trExample || w.exampleTr || '').trim();
