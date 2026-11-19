@@ -1,0 +1,216 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+    <title>PrepLingo - University Prep English-Turkish Dictionary & Study</title>
+    <meta name="description" content="Clean, ad-free offline English-Turkish preparatory dictionary and study app with CEFR levels, interactive flashcards, 60s speed match game, and pronunciation speech recognition." />
+    <meta property="og:title" content="PrepLingo - University Prep English-Turkish Dictionary & Study" />
+    <meta property="og:description" content="Clean, ad-free offline English-Turkish preparatory dictionary and study app with CEFR levels, interactive flashcards, 60s speed match game, and pronunciation speech recognition." />
+    <meta property="og:type" content="website" />
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="theme-color" content="#16A34A" />
+    <meta name="mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="default" />
+    <meta name="apple-mobile-web-app-title" content="PrepLingo" />
+    <link rel="manifest" href="/manifest.json" />
+    <link rel="icon" type="image/svg+xml" href="/icon.svg" />
+    <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:ital,wght@0,300;0,400;0,500;0,600;0,700;0,800;1,400&family=Outfit:wght@500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+    <style>
+      @keyframes plBootFadeIn {
+        from { opacity: 0; transform: translateY(8px); }
+        to { opacity: 1; transform: translateY(0); }
+      }
+      @keyframes plBootPulse {
+        0%, 100% { transform: scale(1) translateY(0); }
+        50% { transform: scale(1.03) translateY(-4px); }
+      }
+      [data-netlify-deploy-id],
+      [data-netlify-badge],
+      [id*="netlify"],
+      [id*="Netlify"],
+      [class*="netlify"],
+      [class*="Netlify"],
+      a[href*="netlify.com"],
+      iframe[src*="netlify"] {
+        display: none !important;
+        visibility: hidden !important;
+        opacity: 0 !important;
+        pointer-events: none !important;
+        width: 0 !important;
+        height: 0 !important;
+        overflow: hidden !important;
+      }
+    </style>
+  </head>
+  <body class="bg-[#ecfdf5] dark:bg-[#0f172a] text-[#0f172a] dark:text-[#f8fafc] antialiased font-['Plus_Jakarta_Sans',sans-serif]">
+    <div id="root">
+      <div style="min-height:100vh;width:100%;display:flex;flex-direction:column;align-items:center;justify-content:center;background-color:#ECFDF5;color:#0F172A;padding:24px;box-sizing:border-box;text-align:center;font-family:'Plus Jakarta Sans',sans-serif;">
+        <div style="animation:plBootFadeIn 0.45s ease-out both;display:flex;flex-direction:column;align-items:center;max-width:380px;">
+          <div style="animation:plBootPulse 2.6s ease-in-out infinite;width:88px;height:88px;border-radius:24px;background-color:#16A34A;display:flex;align-items:center;justify-content:center;box-shadow:0 14px 30px -6px rgba(22,163,74,0.28);margin-bottom:20px;">
+            <img src="/icon.svg" alt="PrepLingo" width="76" height="76" style="display:block;border-radius:20px;" />
+          </div>
+          <h1 style="margin:0;font-family:'Outfit',sans-serif;font-weight:800;font-size:34px;letter-spacing:-0.02em;color:#0F172A;">PrepLingo</h1>
+          <p style="margin:12px 0 0;font-size:14px;line-height:1.55;font-weight:500;color:#475569;">
+            Üniversite Hazırlık, YDS/IELTS/TOEFL ve Tüm İngilizce Öğrenenler İçin Sözlük &amp; Çalışma Platformu
+          </p>
+        </div>
+      </div>
+    </div>
+    <script>
+      (function () {
+        if (typeof window === 'undefined' || typeof document === 'undefined') return;
+
+        function isProtectedAppNode(el) {
+          if (!el || el.nodeType !== 1) return true;
+          var root = document.getElementById('root');
+          if (el === document.documentElement || el === document.head || el === document.body || el === root) {
+            return true;
+          }
+          if (root && (root.contains(el) || el.contains(root))) {
+            return true;
+          }
+          return false;
+        }
+
+        function matchesNetlifyBadge(el) {
+          if (isProtectedAppNode(el)) return false;
+
+          if (
+            el.hasAttribute('data-netlify-deploy-id') ||
+            el.hasAttribute('data-netlify-badge') ||
+            (el.id && /netlify/i.test(el.id)) ||
+            (typeof el.className === 'string' && /netlify/i.test(el.className))
+          ) {
+            return true;
+          }
+
+          var tag = el.tagName;
+          if (tag === 'IFRAME' && /netlify/i.test(el.getAttribute('src') || '')) {
+            return true;
+          }
+          if (tag === 'A' && /netlify\.com/i.test(el.getAttribute('href') || '')) {
+            return true;
+          }
+
+          if (el.querySelector && el.querySelector('[data-netlify-deploy-id], [data-netlify-badge], a[href*="netlify.com"], iframe[src*="netlify"]')) {
+            return true;
+          }
+
+          if (el.shadowRoot) {
+            var shadowText = el.shadowRoot.textContent || '';
+            if (
+              /powered\s+by\s+netlify/i.test(shadowText) ||
+              el.shadowRoot.querySelector('a[href*="netlify.com"], [class*="netlify"], [id*="netlify"]')
+            ) {
+              return true;
+            }
+          }
+
+          var text = (el.textContent || '').trim();
+          if (text && /powered\s+by\s+netlify/i.test(text)) {
+            try {
+              if (window.getComputedStyle(el).position === 'fixed') {
+                return true;
+              }
+            } catch (e) {}
+            if (el.querySelector && el.querySelector('a[href*="netlify"]')) {
+              return true;
+            }
+          }
+
+          return false;
+        }
+
+        function hideAndRemove(el) {
+          if (isProtectedAppNode(el)) return;
+          try {
+            el.style.setProperty('display', 'none', 'important');
+            el.style.setProperty('visibility', 'hidden', 'important');
+            el.style.setProperty('opacity', '0', 'important');
+            el.style.setProperty('pointer-events', 'none', 'important');
+            el.remove();
+          } catch (e) {}
+        }
+
+        function watchShadowRoot(host) {
+          if (!host || !host.shadowRoot || host.__plShadowObserved || isProtectedAppNode(host)) return;
+          host.__plShadowObserved = true;
+          try {
+            var shadowObs = new MutationObserver(function () {
+              if (matchesNetlifyBadge(host)) {
+                hideAndRemove(host);
+              }
+            });
+            shadowObs.observe(host.shadowRoot, { childList: true, subtree: true, characterData: true });
+          } catch (e) {}
+        }
+
+        function scanNode(node) {
+          if (!node || node.nodeType !== 1) return;
+          if (isProtectedAppNode(node)) return;
+
+          if (node.shadowRoot) {
+            watchShadowRoot(node);
+          }
+
+          if (matchesNetlifyBadge(node)) {
+            hideAndRemove(node);
+            return;
+          }
+
+          if (node.children && node.children.length) {
+            var children = Array.prototype.slice.call(node.children);
+            for (var i = 0; i < children.length; i++) {
+              scanNode(children[i]);
+            }
+          }
+        }
+
+        function scanDocument() {
+          var body = document.body;
+          if (!body) return;
+          var children = Array.prototype.slice.call(body.children);
+          for (var i = 0; i < children.length; i++) {
+            scanNode(children[i]);
+          }
+        }
+
+        scanDocument();
+
+        if (typeof MutationObserver !== 'undefined') {
+          var observer = new MutationObserver(function (mutations) {
+            for (var i = 0; i < mutations.length; i++) {
+              var m = mutations[i];
+              if (m.type === 'childList') {
+                for (var j = 0; j < m.addedNodes.length; j++) {
+                  scanNode(m.addedNodes[j]);
+                }
+              } else if (m.type === 'attributes' && m.target && m.target.nodeType === 1) {
+                scanNode(m.target);
+              }
+            }
+          });
+
+          observer.observe(document.documentElement, {
+            childList: true,
+            subtree: true,
+            attributes: true,
+            attributeFilter: ['id', 'class', 'style', 'data-netlify-deploy-id', 'data-netlify-badge', 'src', 'href']
+          });
+        }
+
+        if (document.readyState === 'loading') {
+          document.addEventListener('DOMContentLoaded', scanDocument);
+        }
+        window.addEventListener('load', scanDocument);
+      })();
+    </script>
+    <script type="module" src="/src/main.tsx"></script>
+  </body>
+</html>
+

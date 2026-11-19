@@ -1,0 +1,10 @@
+{
+  "name": "Remix PrepLingo - University Prep English-Turkish Dictionary \u0026 Study",
+  "description": "Clean, ad-free offline English-Turkish preparatory dictionary and study app with CEFR levels, interactive flashcards, 60s speed match game, and pronunciation speech recognition.",
+  "requestFramePermissions": [
+    "microphone"
+  ],
+  "majorCapabilities": [
+    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
+  ]
+}
