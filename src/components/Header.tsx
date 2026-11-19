@@ -33,9 +33,14 @@ export const Header: React.FC<HeaderProps> = ({
           </div>
           <div className="min-w-0">
             <div className="flex items-center gap-2">
-              <span className="font-['Outfit'] font-bold text-lg sm:text-xl tracking-tight text-[#0f172a] dark:text-[#f8fafc] shrink-0">
-                PrepLingo
-              </span>
+              <div className="flex items-center gap-1.5 shrink-0">
+                <span className="font-['Outfit'] font-bold text-lg sm:text-xl tracking-tight text-[#0f172a] dark:text-[#f8fafc] shrink-0">
+                  PrepLingo
+                </span>
+                <span className="inline-flex items-center px-1.5 py-0.5 rounded-md text-[10px] leading-none font-mono font-semibold tracking-tight text-[#475569] dark:text-[#94a3b8] bg-[#f8fafc] dark:bg-[#0f172a] border border-[#e2e8f0] dark:border-[#334155] shrink-0 select-none">
+                  v2.0
+                </span>
+              </div>
               {/* Subtitle badge: hidden on mobile, visible on sm and up */}
               <span className="hidden sm:inline-block text-[11px] font-semibold uppercase tracking-wider text-[#047857] dark:text-[#6ee7b7] bg-[#ecfdf5] dark:bg-[#064e3b] px-2.5 py-0.5 rounded-full border border-[#a7f3d0] dark:border-[#059669] shrink-0">
                 AKADEMİK &amp; GENEL SÖZLÜK
