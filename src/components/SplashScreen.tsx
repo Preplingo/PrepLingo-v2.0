@@ -10,7 +10,7 @@ interface SplashScreenProps {
 
 export const SplashScreen: React.FC<SplashScreenProps> = ({
   onComplete,
-  durationMs = 3500,
+  durationMs = 3000,
   darkMode = false,
 }) => {
   const [isExiting, setIsExiting] = useState(false);

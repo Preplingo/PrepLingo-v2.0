@@ -34,7 +34,7 @@ export interface NewRecordFlags {
 }
 
 export default function App() {
-  // Animated Splash Screen state - displays for 3.5s on first load per session
+  // Animated Splash Screen state - displays for 3s on first load per session
   const [showSplash, setShowSplash] = useState<boolean>(() => {
     if (typeof window !== 'undefined') {
       const splashShown = sessionStorage.getItem('preplingo_splash_shown');
@@ -356,8 +356,8 @@ export default function App() {
       }}
       className="min-h-screen overflow-x-hidden bg-[#E2F0D9] dark:bg-[#0F172A] text-[#0E2F0E] dark:text-[#F8FAFC] flex flex-col font-['Plus_Jakarta_Sans',sans-serif] transition-colors"
     >
-      {/* Animated Splash Screen on first load (3.5s) */}
-      {showSplash && <SplashScreen onComplete={handleSplashComplete} durationMs={3500} darkMode={darkMode} />}
+      {/* Animated Splash Screen on first load (3s) */}
+      {showSplash && <SplashScreen onComplete={handleSplashComplete} durationMs={3000} darkMode={darkMode} />}
 
       {/* Top Header */}
       <Header
