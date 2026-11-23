@@ -45,8 +45,11 @@ export interface WordEntry {
   isCustom?: boolean;
   isFavorite?: boolean;
   isGeneralDict?: boolean; // True when retrieved from the lightweight secondary general dictionary
+  isOfflineDict?: boolean; // True when retrieved from external public/sozluk.json offline dictionary
+  offlinePosLabel?: string; // Raw Turkish part-of-speech label from public/sozluk.json (e.g., 'İsim', 'Fiil')
   isOnlineDict?: boolean; // True when retrieved from Tier 3 Online Dictionary API
   enDefinition?: string; // English academic definition (e.g. from Free Dictionary API)
+  trDefinition?: string; // Turkish-translated explanation for online dictionary words
   status?: WordStatus; // 'ogrenildi' (Mastered) or 'calisiliyor' (Learning)
 }
 

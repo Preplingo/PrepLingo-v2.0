@@ -136,7 +136,8 @@ class LazyGeneralDictionary {
   }
 
   /**
-   * Fast prefix and substring search across the 30,000+ word dictionary
+   * Fast exact & prefix search across the 30,000+ word dictionary (no mid-word .includes()).
+   * Priority: (1) Exact English match, (2) English prefix match, (3) Turkish meaning word-start match.
    */
   public search(query: string, maxResults = 25): WordEntry[] {
     const trimmed = (query || '').trim().toLowerCase();
@@ -148,33 +149,46 @@ class LazyGeneralDictionary {
       return [];
     }
 
+    const trimmedTr = (query || '').trim().toLocaleLowerCase('tr-TR');
     const normQuery = normalizeForSearch(trimmed);
     const exactMatches: WordEntry[] = [];
     const prefixMatches: WordEntry[] = [];
-    const substringMatches: WordEntry[] = [];
+    const turkishStartMatches: WordEntry[] = [];
 
-    // Fast exact match first
+    // 1. Exact English match
     const exactMeaning = this.map.get(trimmed);
     if (exactMeaning) {
       exactMatches.push(createGeneralWordEntry(trimmed, exactMeaning));
     }
 
-    // Prefix and substring matches across keys
+    // 2. English prefix matches & 3. Turkish meaning word-start matches
     for (let i = 0; i < this.keys.length; i++) {
       const key = this.keys[i];
       if (key === trimmed) continue;
 
       if (key.startsWith(trimmed)) {
-        prefixMatches.push(createGeneralWordEntry(key, this.map.get(key) || ''));
-        if (prefixMatches.length >= maxResults) break;
-      } else if (normQuery.length >= 3 && key.includes(trimmed)) {
-        if (substringMatches.length < 10) {
-          substringMatches.push(createGeneralWordEntry(key, this.map.get(key) || ''));
+        if (prefixMatches.length < maxResults) {
+          prefixMatches.push(createGeneralWordEntry(key, this.map.get(key) || ''));
+        }
+        if (prefixMatches.length >= maxResults && exactMatches.length > 0) break;
+      } else if (normQuery.length >= 2 && turkishStartMatches.length < maxResults) {
+        const meaning = this.map.get(key) || '';
+        const rawTokens = meaning
+          .toLocaleLowerCase('tr-TR')
+          .split(/[^a-z0-9çğıöşüâîû]+/i)
+          .filter(Boolean);
+        if (
+          rawTokens.some((t) => t.startsWith(trimmedTr)) ||
+          normalizeForSearch(meaning)
+            .split(' ')
+            .some((t) => t.startsWith(normQuery))
+        ) {
+          turkishStartMatches.push(createGeneralWordEntry(key, meaning));
         }
       }
     }
 
-    return [...exactMatches, ...prefixMatches, ...substringMatches].slice(0, maxResults);
+    return [...exactMatches, ...prefixMatches, ...turkishStartMatches].slice(0, maxResults);
   }
 }
 

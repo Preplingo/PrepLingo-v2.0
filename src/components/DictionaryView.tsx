@@ -26,11 +26,11 @@ import { speakText } from '../utils/textToSpeech';
 import { getCefrBadgeClass, getPosBadgeClass, getPosTurkishLabel } from '../utils/themeBadges';
 import { VerbConjugationBadge } from '../utils/verbConjugation';
 import {
-  generalDictionary,
-  searchGeneralDictionary,
-  ensureGeneralDictionaryLoaded,
-} from '../data/generalDictionaryLoader';
-import { searchEssentialFallback } from '../data/essentialFallback';
+  offlineDictionary,
+  searchOfflineDictionary,
+  ensureOfflineDictionaryLoaded,
+  PREP_CARD_WORD_SET,
+} from '../data/offlineDictionaryLoader';
 import { lookupOnlineDictionary, getCachedOnlineWord } from '../utils/onlineDictionary';
 import { compareWordsAlphabetically } from '../data/initialWords';
 
@@ -52,41 +52,37 @@ const getSearchMatchPriority = (
   normQuery: string
 ): number => {
   const index = getWordSearchIndex(item);
-  const wordTrimmedLower = item.word.trim().toLowerCase();
-  const meaningTrimmedLower = item.trMeaning.trim().toLowerCase();
+  const queryTrLower = queryLower.toLocaleLowerCase('tr-TR');
 
   // 1. Exact English word match
-  if (wordTrimmedLower === queryLower) return 100;
-  // 2. Normalized exact English word match
+  if (index.wordLower === queryLower) return 100;
   if (normQuery && index.wordNorm === normQuery) return 95;
-  // 3. Exact Turkish meaning match (full or comma/semicolon-separated sense)
+
+  // 2. English word prefix (startsWith) match
+  if (index.wordLower.startsWith(queryLower)) return 85;
+  if (normQuery && index.wordNorm.startsWith(normQuery)) return 80;
+
+  // 3. Turkish meaning exact sense or word-start match
   if (
-    meaningTrimmedLower === queryLower ||
-    meaningTrimmedLower.split(/[,;]/).some((part) => part.trim() === queryLower)
+    index.meaningSensesLower.some((s) => s === queryTrLower) ||
+    (normQuery && index.meaningSensesNorm.some((s) => s === normQuery))
   ) {
-    return 90;
+    return 70;
   }
-  // 4. English word starts with query
-  if (wordTrimmedLower.startsWith(queryLower)) return 80;
-  // 5. Normalized English word starts with normalized query
-  if (normQuery && index.wordNorm.startsWith(normQuery)) return 75;
-  // 6. Turkish meaning starts with query
   if (
-    meaningTrimmedLower.startsWith(queryLower) ||
-    (normQuery && index.meaningNorm.startsWith(normQuery))
+    index.meaningSensesLower.some((s) => s.startsWith(queryTrLower)) ||
+    (normQuery && index.meaningSensesNorm.some((s) => s.startsWith(normQuery)))
   ) {
     return 65;
   }
-  // 7. English word contains query
-  if (wordTrimmedLower.includes(queryLower) || (normQuery && index.wordNorm.includes(normQuery))) {
-    return 50;
+  if (
+    index.meaningRawTokens.some((t) => t.startsWith(queryTrLower)) ||
+    (normQuery && index.meaningNormTokens.some((t) => t.startsWith(normQuery)))
+  ) {
+    return 60;
   }
-  // 8. Turkish meaning contains query
-  if (meaningTrimmedLower.includes(queryLower) || (normQuery && index.meaningNorm.includes(normQuery))) {
-    return 40;
-  }
-  // 9. Example sentence or collocation match
-  return 20;
+
+  return 0;
 };
 
 interface DictionaryViewProps {
@@ -115,14 +111,31 @@ export const DictionaryView: React.FC<DictionaryViewProps> = ({
   // View mode switcher: standard (Sözlük Arama) vs directory (A-Z Dizin)
   const [viewMode, setViewMode] = useState<'standard' | 'directory'>('standard');
 
-  // Track lazy load state of the general dictionary
-  const [isGeneralDictLoaded, setIsGeneralDictLoaded] = useState(() => generalDictionary.getIsLoaded());
+  // Track background async load state of external public/sozluk.json offline dictionary
+  const [isOfflineDictLoaded, setIsOfflineDictLoaded] = useState(() =>
+    offlineDictionary.getIsLoaded()
+  );
 
   useEffect(() => {
-    return generalDictionary.subscribe(() => {
-      setIsGeneralDictLoaded(true);
+    ensureOfflineDictionaryLoaded();
+    return offlineDictionary.subscribe(() => {
+      setIsOfflineDictLoaded(true);
     });
   }, []);
+
+  // Live Prep Card words (excluding any bookmarked offline entries) & fast lowercase Set for ZERO collision
+  const prepCardWords = useMemo(
+    () => words.filter((w) => !w.isOfflineDict && !w.id.startsWith('offline_')),
+    [words]
+  );
+
+  const prepCardWordSet = useMemo(() => {
+    const set = new Set<string>(PREP_CARD_WORD_SET);
+    for (const w of prepCardWords) {
+      if (w.word) set.add(w.word.trim().toLowerCase());
+    }
+    return set;
+  }, [prepCardWords]);
 
   // Directory Mode states: default Part of Speech is 'verb' (Fiil) as requested
   const [directoryPos, setDirectoryPos] = useState<PosFilter>('verb');
@@ -201,25 +214,34 @@ export const DictionaryView: React.FC<DictionaryViewProps> = ({
       .sort(compareWordsAlphabetically);
   }, [words, directoryPos, selectedLetter]);
 
-  // Generate top 5 autocomplete candidate suggestions with indexed prefix matching.
-  // First searches the primary rich prep dataset; backfills with secondary general dictionary if fewer than 5.
+  // Generate top 5 autocomplete suggestions: Stage 1 (Prep Cards) first, then Stage 2 (public/sozluk.json deduplicated)
   const suggestions = useMemo(() => {
     const query = searchQuery.trim().toLowerCase();
     if (!query) return [];
 
+    const queryTrLower = searchQuery.trim().toLocaleLowerCase('tr-TR');
     const normQuery = normalizeForSearch(query);
 
-    const scored = words
+    const scored = prepCardWords
       .map((word) => {
         const index = getWordSearchIndex(word);
 
         let score = 0;
         if (index.wordLower === query) score = 100;
+        else if (normQuery && index.wordNorm === normQuery) score = 95;
         else if (index.wordLower.startsWith(query)) score = 85;
-        else if (index.wordNorm.startsWith(normQuery)) score = 80;
-        else if (index.meaningLower.startsWith(query) || index.meaningNorm.startsWith(normQuery)) score = 75;
-        else if (index.wordNorm.includes(normQuery)) score = 55;
-        else if (index.meaningNorm.includes(normQuery)) score = 45;
+        else if (normQuery && index.wordNorm.startsWith(normQuery)) score = 80;
+        else if (
+          index.meaningSensesLower.some((s) => s.startsWith(queryTrLower)) ||
+          (normQuery && index.meaningSensesNorm.some((s) => s.startsWith(normQuery)))
+        ) {
+          score = 70;
+        } else if (
+          index.meaningRawTokens.some((t) => t.startsWith(queryTrLower)) ||
+          (normQuery && index.meaningNormTokens.some((t) => t.startsWith(normQuery)))
+        ) {
+          score = 60;
+        }
 
         return { word, score };
       })
@@ -229,36 +251,23 @@ export const DictionaryView: React.FC<DictionaryViewProps> = ({
     const primaryResults = scored.slice(0, 5).map((item) => item.word);
     const seenWords = new Set(primaryResults.map((w) => w.word.toLowerCase()));
 
-    // 1. If fewer than 5 primary suggestions, backfill from essential fallback dataset
+    // Backfill from deduplicated Stage 2 external public/sozluk.json only if fewer than 5 Prep Card matches
     if (primaryResults.length < 5) {
       const needed = 5 - primaryResults.length;
-      const essentialMatches = searchEssentialFallback(query, needed + 5);
+      const offlineMatches = searchOfflineDictionary(searchQuery.trim(), needed + 5, prepCardWordSet);
 
-      for (const essWord of essentialMatches) {
-        if (!seenWords.has(essWord.word.toLowerCase())) {
-          seenWords.add(essWord.word.toLowerCase());
-          primaryResults.push(essWord);
-          if (primaryResults.length >= 5) break;
-        }
-      }
-    }
-
-    // 2. If still fewer than 5 primary suggestions, backfill from secondary compact general dictionary
-    if (primaryResults.length < 5) {
-      const needed = 5 - primaryResults.length;
-      const generalMatches = searchGeneralDictionary(query, needed + 5);
-
-      for (const genWord of generalMatches) {
-        if (!seenWords.has(genWord.word.toLowerCase())) {
-          seenWords.add(genWord.word.toLowerCase());
-          primaryResults.push(genWord);
+      for (const offWord of offlineMatches) {
+        const key = offWord.word.toLowerCase();
+        if (!seenWords.has(key) && !prepCardWordSet.has(key)) {
+          seenWords.add(key);
+          primaryResults.push(offWord);
           if (primaryResults.length >= 5) break;
         }
       }
     }
 
     return primaryResults;
-  }, [words, searchQuery, isGeneralDictLoaded]);
+  }, [prepCardWords, prepCardWordSet, searchQuery, isOfflineDictLoaded]);
 
   // Click outside listener to dismiss suggestions
   useEffect(() => {
@@ -283,7 +292,7 @@ export const DictionaryView: React.FC<DictionaryViewProps> = ({
     setIsInputFocused(false);
     setActiveSuggestionIndex(-1);
     inputRef.current?.blur();
-    ensureGeneralDictionaryLoaded();
+    ensureOfflineDictionaryLoaded();
 
     const trimmed = searchQuery.trim();
     if (trimmed.length >= 2 && !hasExactLocalMatch) {
@@ -340,7 +349,7 @@ export const DictionaryView: React.FC<DictionaryViewProps> = ({
     inputRef.current?.blur();
 
     // Reset filters if they would hide the chosen card
-    if (word.isGeneralDict || word.cefrLevel === 'Genel') {
+    if (word.isOfflineDict || word.isGeneralDict || word.cefrLevel === 'Genel') {
       setCefrFilter('Tümü');
     } else if (cefrFilter === 'A1-A2' && (word.cefrLevel === 'B1' || word.cefrLevel === 'B2')) {
       setCefrFilter('Tümü');
@@ -377,16 +386,16 @@ export const DictionaryView: React.FC<DictionaryViewProps> = ({
     }, 2800);
   };
 
-  // 3-Tier Search Pipeline:
-  // Tier 1: Search dictionaryData.json (+ essentialFallback merged into words).
-  // Tier 2: Search essentialFallback and generalDictionary.json whenever exact word match isn't in Tier 1.
-  const { localMatches, isFromGeneralDict } = useMemo(() => {
+  // 3-Stage Search Priority Pipeline:
+  // Stage 1: 2,575 Prep Cards (prepCardWords) — ALWAYS searched & shown first
+  // Stage 2: External Offline General Dictionary (public/sozluk.json) — strictly deduplicated via prepCardWordSet
+  // Stage 3: Online Dictionary API (only when NOT found in Stage 1 or Stage 2)
+  const { localMatches, isFromOfflineDict } = useMemo(() => {
     const trimmedQuery = searchQuery.trim();
     const trimmedLower = trimmedQuery.toLowerCase();
 
-    // Tier 1: Primary rich prep search
-    const primaryMatches = words.filter((item) => {
-      // CEFR Filter (supports grouped A1-A2/B1-B2 and any individual CEFR level)
+    // Stage 1: Prep Cards search (prefix/word-start matching on English word & Turkish meaning)
+    const primaryMatches = prepCardWords.filter((item) => {
       if (cefrFilter !== 'Tümü') {
         if (cefrFilter === 'A1-A2') {
           if (item.cefrLevel !== 'A1' && item.cefrLevel !== 'A2') return false;
@@ -397,17 +406,14 @@ export const DictionaryView: React.FC<DictionaryViewProps> = ({
         }
       }
 
-      // Part of speech filter
       if (!matchesPartOfSpeechFilter(item, posFilter)) {
         return false;
       }
 
-      // Status filter
       if (statusFilter !== 'all') {
         if (item.status !== statusFilter) return false;
       }
 
-      // Fast pre-indexed tokenized search query matching (< 0.5ms on 1000+ words)
       if (trimmedQuery) {
         return fastMatchWord(item, trimmedQuery);
       }
@@ -416,80 +422,84 @@ export const DictionaryView: React.FC<DictionaryViewProps> = ({
     });
 
     if (!trimmedQuery) {
-      return { localMatches: primaryMatches, isFromGeneralDict: false };
+      return { localMatches: primaryMatches, isFromOfflineDict: false };
     }
 
+    // If Stage 1 (Prep Cards) has an exact match, return ONLY Stage 1 immediately
     const primaryHasExact = primaryMatches.some(
       (w) => w.word.toLowerCase().trim() === trimmedLower
     );
-
     if (primaryHasExact) {
-      return { localMatches: primaryMatches, isFromGeneralDict: false };
+      return { localMatches: primaryMatches, isFromOfflineDict: false };
     }
 
-    // Tier 2a: Essential everyday & academic fallback search (synchronous, instant)
-    const essentialMatches = searchEssentialFallback(trimmedQuery, 40).filter((item) =>
-      matchesPartOfSpeechFilter(item, posFilter)
+    // Stage 2: External Offline General Dictionary (public/sozluk.json), strictly deduplicated against prepCardWordSet
+    const offlineMatches = searchOfflineDictionary(trimmedQuery, 40, prepCardWordSet).filter(
+      (item) => matchesPartOfSpeechFilter(item, posFilter)
     );
 
-    const essentialHasExact = essentialMatches.some(
-      (w) => w.word.toLowerCase().trim() === trimmedLower
+    // Hydrate favorite state if the user bookmarked an offline entry
+    const favoriteIdMap = new Map<string, boolean>();
+    for (const w of words) {
+      if (w.isFavorite) favoriteIdMap.set(w.id, true);
+    }
+    const hydratedOfflineMatches = offlineMatches.map((entry) =>
+      favoriteIdMap.has(entry.id) ? { ...entry, isFavorite: true } : entry
     );
 
-    if (essentialHasExact) {
-      const seen = new Set(essentialMatches.map((w) => w.word.toLowerCase().trim()));
-      const merged = [
-        ...essentialMatches,
-        ...primaryMatches.filter((w) => !seen.has(w.word.toLowerCase().trim())),
-      ];
-      return { localMatches: merged, isFromGeneralDict: false };
+    // If Stage 1 has matches: keep Stage 1 first; only append an exact match from Stage 2 if present
+    if (primaryMatches.length > 0) {
+      const exactOffline = hydratedOfflineMatches.filter(
+        (w) => w.word.toLowerCase().trim() === trimmedLower
+      );
+      if (exactOffline.length > 0) {
+        return {
+          localMatches: [...primaryMatches, ...exactOffline],
+          isFromOfflineDict: false,
+        };
+      }
+      return { localMatches: primaryMatches, isFromOfflineDict: false };
     }
 
-    // Tier 2b: Secondary compact general dataset (30,000+ words)
-    const generalMatches = searchGeneralDictionary(trimmedQuery, 40).filter((item) =>
-      matchesPartOfSpeechFilter(item, posFilter)
-    );
-
-    const generalExactMatches = generalMatches.filter(
-      (w) => w.word.toLowerCase().trim() === trimmedLower
-    );
-
-    if (generalExactMatches.length > 0) {
-      const seen = new Set(generalMatches.map((w) => w.word.toLowerCase().trim()));
-      const merged = [
-        ...generalMatches,
-        ...essentialMatches.filter((w) => !seen.has(w.word.toLowerCase().trim())),
-        ...primaryMatches.filter((w) => !seen.has(w.word.toLowerCase().trim())),
-      ];
+    // Stage 1 had 0 matches -> show Stage 2 (public/sozluk.json) results cleanly
+    if (hydratedOfflineMatches.length > 0) {
       return {
-        localMatches: merged,
-        isFromGeneralDict: primaryMatches.length === 0 && essentialMatches.length === 0,
+        localMatches: hydratedOfflineMatches,
+        isFromOfflineDict: true,
       };
     }
 
-    if (primaryMatches.length > 0) {
-      return { localMatches: primaryMatches, isFromGeneralDict: false };
-    }
-
-    if (essentialMatches.length > 0) {
-      return { localMatches: essentialMatches, isFromGeneralDict: false };
-    }
-
     return {
-      localMatches: generalMatches,
-      isFromGeneralDict: generalMatches.length > 0,
+      localMatches: [],
+      isFromOfflineDict: false,
     };
-  }, [words, cefrFilter, posFilter, statusFilter, searchQuery, isGeneralDictLoaded]);
+  }, [
+    words,
+    prepCardWords,
+    prepCardWordSet,
+    cefrFilter,
+    posFilter,
+    statusFilter,
+    searchQuery,
+    isOfflineDictLoaded,
+  ]);
 
-  // Exact local word match check (ignores partial/example-sentence substring matches like "publicly" inside "repudiate")
+  // Exact local word match check across Stage 1 (Prep Cards) and Stage 2 (Offline Dictionary)
   const hasExactLocalMatch = useMemo(() => {
     const trimmedLower = searchQuery.toLowerCase().trim();
+    const trimmedTrLower = searchQuery.toLocaleLowerCase('tr-TR').trim();
     if (!trimmedLower) return false;
-    return localMatches.some((w) => w.word.toLowerCase().trim() === trimmedLower);
+    return localMatches.some((w) => {
+      if (w.word.toLowerCase().trim() === trimmedLower) return true;
+      const tr = (w.trMeaning || w.meaning || '').toLocaleLowerCase('tr-TR').trim();
+      if (!tr) return false;
+      if (tr === trimmedTrLower) return true;
+      return tr.split(/[,;/()]+/).some((part) => part.trim() === trimmedTrLower);
+    });
   }, [localMatches, searchQuery]);
 
-  // Tier 3: Automatic Online Lookup (500ms debounced on typing, 0ms on Search Button / Enter)
-  // Triggered whenever a searched word (min 2 chars) has NO exact local match.
+  // Stage 3: Automatic Online Lookup (500ms debounced on typing, 0ms on Search Button / Enter)
+  // Triggered ONLY when a searched word (min 2 chars) is NOT found in Stage 1 or Stage 2.
   useEffect(() => {
     const trimmedQuery = searchQuery.trim();
 
@@ -501,9 +511,9 @@ export const DictionaryView: React.FC<DictionaryViewProps> = ({
       return;
     }
 
-    // Ensure Tier 2 generalDictionary finishes loading before falling back to Tier 3 online API
-    if (!isGeneralDictLoaded) {
-      ensureGeneralDictionaryLoaded();
+    // Wait for Stage 2 public/sozluk.json to finish loading before querying Stage 3 online API
+    if (!isOfflineDictLoaded) {
+      ensureOfflineDictionaryLoaded();
       return;
     }
 
@@ -557,12 +567,11 @@ export const DictionaryView: React.FC<DictionaryViewProps> = ({
       clearTimeout(debounceTimer);
       controller.abort();
     };
-  }, [searchQuery, hasExactLocalMatch, isGeneralDictLoaded, viewMode, isOnline, searchSubmitCount]);
+  }, [searchQuery, hasExactLocalMatch, isOfflineDictLoaded, viewMode, isOnline, searchSubmitCount]);
 
   // Final render-ready list:
-  // - Empty search query -> strictly sorted A-Z by English word at the very last step before returning
-  //   (no isFavorite, isCustom, isFeatured, isNew, priority, id, or insertion-order overrides)
-  // - Active search query -> sorted by match priority (exact match, word prefix, etc.) with A-Z tie-breaker
+  // - Empty search query -> strictly sorted A-Z by English word (Stage 1 Prep Cards only)
+  // - Active search query -> Stage 1 Prep Cards prioritized first, then Stage 2 Offline Dictionary, then Stage 3 Online API
   const filteredWords = useMemo(() => {
     const trimmedQuery = searchQuery.trim();
 
@@ -579,9 +588,22 @@ export const DictionaryView: React.FC<DictionaryViewProps> = ({
 
     const sortBySearchPriority = (list: WordEntry[]) =>
       [...list].sort((a, b) => {
-        const priorityDiff =
-          getSearchMatchPriority(b, queryLower, normQuery) -
-          getSearchMatchPriority(a, queryLower, normQuery);
+        // Keep Stage 1 Prep Cards ahead of Stage 2 Offline Dictionary unless Stage 2 is an exact match
+        const aIsOffline = Boolean(a.isOfflineDict);
+        const bIsOffline = Boolean(b.isOfflineDict);
+        const priorityA = getSearchMatchPriority(a, queryLower, normQuery);
+        const priorityB = getSearchMatchPriority(b, queryLower, normQuery);
+
+        if (aIsOffline !== bIsOffline) {
+          // If one is Stage 1 (Prep Card) and the other is Stage 2 (Offline), prefer Stage 1 first
+          // unless Stage 2 is an exact match while Stage 1 is not
+          const aExact = priorityA >= 95;
+          const bExact = priorityB >= 95;
+          if (aExact !== bExact) return bExact ? 1 : -1;
+          return aIsOffline ? 1 : -1;
+        }
+
+        const priorityDiff = priorityB - priorityA;
         if (priorityDiff !== 0) return priorityDiff;
         return a.word.trim().localeCompare(b.word.trim(), 'en', { sensitivity: 'base' });
       });
@@ -591,7 +613,7 @@ export const DictionaryView: React.FC<DictionaryViewProps> = ({
       const remainingLocal = localMatches.filter(
         (w) => !onlineWordSet.has(w.word.toLowerCase().trim())
       );
-      return [...onlineResults, ...sortBySearchPriority(remainingLocal)];
+      return [...sortBySearchPriority(remainingLocal), ...onlineResults];
     }
 
     return sortBySearchPriority(localMatches);
@@ -781,7 +803,9 @@ export const DictionaryView: React.FC<DictionaryViewProps> = ({
                 const isExpanded = expandedDirCardId === item.id;
                 const isSpeakingWord = speakingId === `dir-word-${item.id}`;
                 const isSpeakingEx = speakingId === `dir-ex-${item.id}`;
+                const isOnlineEntry = Boolean(item.isOnlineDict || item.id.startsWith('online_'));
                 const hasCollocations = Boolean(
+                  !isOnlineEntry &&
                   Array.isArray(item.collocations) &&
                   item.collocations.length > 0 &&
                   item.collocations.some((c) => typeof c === 'string' && c.trim().length > 0)
@@ -789,7 +813,8 @@ export const DictionaryView: React.FC<DictionaryViewProps> = ({
                 const hasTip = Boolean(
                   item.academicNote &&
                   item.academicNote.trim().length > 0 &&
-                  !item.isGeneralDict
+                  !item.isGeneralDict &&
+                  !isOnlineEntry
                 );
 
                 return (
@@ -924,33 +949,37 @@ export const DictionaryView: React.FC<DictionaryViewProps> = ({
                     {/* Expandable Details Drawer */}
                     {isExpanded && (
                       <div className="mt-3.5 pt-3 border-t border-dashed border-[#e2e8f0] dark:border-[#334155] space-y-3 animate-in fade-in duration-150">
-                        {/* Example sentence with English Audio */}
-                        <div className="bg-[#f8fafc] dark:bg-[#0f172a] rounded-2xl p-4 border border-[#e2e8f0] dark:border-[#334155] space-y-1.5">
-                          <div className="flex items-start justify-between gap-2">
-                            <p className="text-sm font-semibold text-[#0f172a] dark:text-[#f8fafc] leading-relaxed">
-                              &quot;{item.enExample}&quot;
-                            </p>
-                            <button
-                              type="button"
-                              onClick={() => handleSpeakEnglish(item.enExample, `dir-ex-${item.id}`)}
-                              className={`p-1.5 shrink-0 rounded-xl text-[#475569] hover:text-[#16a34a] hover:bg-[#ecfdf5] dark:hover:bg-[#334155] transition-colors ${
-                                isSpeakingEx ? 'text-[#16a34a] animate-pulse' : ''
-                              }`}
-                              title="İngilizce örnek cümleyi dinle"
-                            >
-                              <Volume2
-                                width={16}
-                                height={16}
-                                fill="none"
-                                stroke={isSpeakingEx ? '#16a34a' : '#64748b'}
-                                className="w-4 h-4"
-                              />
-                            </button>
+                        {/* Example sentence with English Audio (only if a real example exists) */}
+                        {item.enExample && item.enExample.trim().length > 0 && (
+                          <div className="bg-[#f8fafc] dark:bg-[#0f172a] rounded-2xl p-4 border border-[#e2e8f0] dark:border-[#334155] space-y-1.5">
+                            <div className="flex items-start justify-between gap-2">
+                              <p className="text-sm font-semibold text-[#0f172a] dark:text-[#f8fafc] leading-relaxed">
+                                &quot;{item.enExample}&quot;
+                              </p>
+                              <button
+                                type="button"
+                                onClick={() => handleSpeakEnglish(item.enExample, `dir-ex-${item.id}`)}
+                                className={`p-1.5 shrink-0 rounded-xl text-[#475569] hover:text-[#16a34a] hover:bg-[#ecfdf5] dark:hover:bg-[#334155] transition-colors ${
+                                  isSpeakingEx ? 'text-[#16a34a] animate-pulse' : ''
+                                }`}
+                                title="İngilizce örnek cümleyi dinle"
+                              >
+                                <Volume2
+                                  width={16}
+                                  height={16}
+                                  fill="none"
+                                  stroke={isSpeakingEx ? '#16a34a' : '#64748b'}
+                                  className="w-4 h-4"
+                                />
+                              </button>
+                            </div>
+                            {item.trExample && item.trExample.trim().length > 0 && (
+                              <p className="text-xs sm:text-sm text-[#475569] dark:text-[#94a3b8] italic">
+                                &quot;{item.trExample}&quot;
+                              </p>
+                            )}
                           </div>
-                          <p className="text-xs sm:text-sm text-[#475569] dark:text-[#94a3b8] italic">
-                            &quot;{item.trExample}&quot;
-                          </p>
-                        </div>
+                        )}
 
                         {/* Exam Tip */}
                         {hasTip && (
@@ -1030,12 +1059,12 @@ export const DictionaryView: React.FC<DictionaryViewProps> = ({
                 setSearchQuery(e.target.value);
                 setShowSuggestions(true);
                 setActiveSuggestionIndex(-1);
-                ensureGeneralDictionaryLoaded();
+                ensureOfflineDictionaryLoaded();
               }}
               onFocus={() => {
                 setIsInputFocused(true);
                 setShowSuggestions(true);
-                ensureGeneralDictionaryLoaded();
+                ensureOfflineDictionaryLoaded();
               }}
               onKeyDown={handleKeyDown}
               placeholder="Kelime veya anlam ara (İngilizce / Türkçe)..."
@@ -1122,7 +1151,11 @@ export const DictionaryView: React.FC<DictionaryViewProps> = ({
                         </span>
                       </div>
                       <div className="flex items-center gap-2 shrink-0">
-                        {item.isGeneralDict ? (
+                        {item.isOfflineDict ? (
+                          <span className="text-[10px] font-bold px-2 py-0.5 rounded-md bg-[#E2F0D9] dark:bg-[#0F172A] text-[#0E2F0E] dark:text-[#F8FAFC] border border-[#B4C6A6] dark:border-[#334155]">
+                            Çevrimdışı Sözlük 📖
+                          </span>
+                        ) : item.isGeneralDict ? (
                           <span className="text-[10px] font-bold px-2 py-0.5 rounded-md bg-[#f0f9ff] dark:bg-[#082f49] text-[#0369a1] dark:text-[#7dd3fc] border border-[#7dd3fc] dark:border-[#075985]">
                             Genel Sözlük
                           </span>
@@ -1145,8 +1178,11 @@ export const DictionaryView: React.FC<DictionaryViewProps> = ({
           )}
         </form>
 
-        {/* Immediate Feedback Card right below the Search Bar when exact word match is missing (>= 2 chars) */}
-        {!hasExactLocalMatch && onlineResults.length === 0 && searchQuery.trim().length >= 2 && (
+        {/* Immediate Feedback Card right below the Search Bar when no local prefix/exact match exists (>= 2 chars) */}
+        {!hasExactLocalMatch &&
+          localMatches.length === 0 &&
+          onlineResults.length === 0 &&
+          searchQuery.trim().length >= 2 && (
           <div className="pt-1">
             {!isOnline ||
             (typeof navigator !== 'undefined' && navigator.onLine === false) ||
@@ -1173,7 +1209,7 @@ export const DictionaryView: React.FC<DictionaryViewProps> = ({
                   Temizle
                 </button>
               </div>
-            ) : isOnlineLoading || !isGeneralDictLoaded || onlineErrorReason === null ? (
+            ) : isOnlineLoading || !isOfflineDictLoaded || onlineErrorReason === null ? (
               <div className="rounded-2xl p-4 sm:p-5 bg-[#eef2ff] dark:bg-[#1e1b4b] border border-[#c7d2fe] dark:border-[#3730a3] flex items-center gap-3 animate-in fade-in duration-150">
                 <Loader2 width={20} height={20} fill="none" stroke="#4f46e5" className="w-5 h-5 animate-spin shrink-0" />
                 <div className="text-left">
@@ -1321,8 +1357,8 @@ export const DictionaryView: React.FC<DictionaryViewProps> = ({
             </button>
           </div>
 
-          {/* Source / Loading Status Line (only shown for online or general fallback searches, no word counter) */}
-          {(isOnlineLoading || isFromOnlineDict || isFromGeneralDict) && (
+          {/* Source / Loading Status Line (only shown for online or offline general dictionary searches) */}
+          {(isOnlineLoading || isFromOnlineDict || isFromOfflineDict) && (
             <div className="text-xs text-[#475569] dark:text-[#94a3b8]">
               {isOnlineLoading ? (
                 <span className="flex items-center gap-1.5 font-medium text-[#16a34a] dark:text-[#34d399]">
@@ -1333,14 +1369,14 @@ export const DictionaryView: React.FC<DictionaryViewProps> = ({
                 <span className="flex items-center gap-1.5 font-medium text-[#0f766e] dark:text-[#5eead4]">
                   <Globe width={14} height={14} fill="none" stroke="#14b8a6" className="w-3.5 h-3.5 shrink-0" />
                   <span>
-                    Yerel listede bulunamadı, <strong className="font-bold">Çevrimiçi Sözlük 🌐</strong> üzerinden sonuç gösteriliyor
+                    Yerel sözlüklerde bulunamadı, <strong className="font-bold">Çevrimiçi Sözlük 🌐</strong> üzerinden sonuç gösteriliyor
                   </span>
                 </span>
               ) : (
-                <span className="flex items-center gap-1.5 font-medium text-[#0369a1] dark:text-[#7dd3fc]">
-                  <span className="w-2 h-2 rounded-full bg-[#0ea5e9] animate-pulse" />
+                <span className="flex items-center gap-1.5 font-medium text-[#2E7D32] dark:text-[#10B981]">
+                  <BookOpen width={14} height={14} fill="none" stroke="currentColor" className="w-3.5 h-3.5 shrink-0" />
                   <span>
-                    Hazırlık listesinde bulunamadı, <strong className="font-bold underline">Genel Sözlük</strong> üzerinden sonuç gösteriliyor
+                    Hazırlık kartlarında bulunamadı, <strong className="font-bold">Çevrimdışı Sözlük 📖</strong> üzerinden sonuç gösteriliyor
                   </span>
                 </span>
               )}
@@ -1383,7 +1419,11 @@ export const DictionaryView: React.FC<DictionaryViewProps> = ({
             const isSpeakingWord = speakingId === `word-${item.id}`;
             const isSpeakingEx = speakingId === `ex-${item.id}`;
             const isHighlighted = highlightedWordId === item.id;
+            const isOnlineEntry = Boolean(item.isOnlineDict || item.id.startsWith('online_'));
+            const isOfflineEntry = Boolean(item.isOfflineDict || item.id.startsWith('offline_'));
             const hasCollocations = Boolean(
+              !isOnlineEntry &&
+              !isOfflineEntry &&
               Array.isArray(item.collocations) &&
               item.collocations.length > 0 &&
               item.collocations.some((c) => typeof c === 'string' && c.trim().length > 0)
@@ -1391,7 +1431,9 @@ export const DictionaryView: React.FC<DictionaryViewProps> = ({
             const hasTip = Boolean(
               item.academicNote &&
               item.academicNote.trim().length > 0 &&
-              !item.isGeneralDict
+              !item.isGeneralDict &&
+              !isOnlineEntry &&
+              !isOfflineEntry
             );
 
             return (
@@ -1440,10 +1482,10 @@ export const DictionaryView: React.FC<DictionaryViewProps> = ({
 
                     {/* Part of Speech & CEFR Level Badges & Status */}
                     <div className="flex flex-wrap items-center gap-2 pt-0.5">
-                      {/* CEFR Badge or Online/Genel Sözlük Badge */}
-                      {item.isOnlineDict ? (
+                      {/* CEFR Badge or Offline/Online Sözlük Badge */}
+                      {isOnlineEntry ? (
                         <>
-                          <span className="text-[11px] font-bold px-2.5 py-0.5 rounded-lg bg-[#f0fdfa] dark:bg-[#042f2e] text-[#0f766e] dark:text-[#5eead4] border border-[#5eead4] dark:border-[#115e59] flex items-center gap-1 shadow-2xs">
+                          <span className="text-[11px] font-bold px-2.5 py-0.5 rounded-lg bg-[#f0fdfa] dark:bg-[#042f2e] text-[#0f766e] dark:text-[#5eead4] border border-[#5eead4] dark:border-[#115e59] flex items-center gap-1">
                             <Globe width={14} height={14} fill="none" stroke="#0d9488" className="w-3.5 h-3.5" />
                             <span>Çevrimiçi Sözlük 🌐</span>
                           </span>
@@ -1455,8 +1497,21 @@ export const DictionaryView: React.FC<DictionaryViewProps> = ({
                             {getPosTurkishLabel(item.partOfSpeech)}
                           </span>
                         </>
+                      ) : isOfflineEntry ? (
+                        <>
+                          <span className="text-[11px] font-bold px-2.5 py-0.5 rounded-lg bg-[#E2F0D9] dark:bg-[#0F172A] text-[#0E2F0E] dark:text-[#F8FAFC] border border-[#B4C6A6] dark:border-[#334155] flex items-center gap-1">
+                            <span>Çevrimdışı Sözlük 📖</span>
+                          </span>
+                          <span
+                            className={`text-[11px] px-2.5 py-0.5 rounded-lg ${getPosBadgeClass(
+                              item.partOfSpeech
+                            )}`}
+                          >
+                            {item.offlinePosLabel || getPosTurkishLabel(item.partOfSpeech)}
+                          </span>
+                        </>
                       ) : item.isGeneralDict ? (
-                        <span className="text-[11px] font-bold px-2.5 py-0.5 rounded-lg bg-[#f0f9ff] dark:bg-[#082f49] text-[#0369a1] dark:text-[#7dd3fc] border border-[#7dd3fc] dark:border-[#075985] flex items-center gap-1 shadow-2xs">
+                        <span className="text-[11px] font-bold px-2.5 py-0.5 rounded-lg bg-[#f0f9ff] dark:bg-[#082f49] text-[#0369a1] dark:text-[#7dd3fc] border border-[#7dd3fc] dark:border-[#075985] flex items-center gap-1">
                           <BookOpen width={14} height={14} fill="none" stroke="#0284c7" className="w-3.5 h-3.5" />
                           <span>Genel Sözlük</span>
                         </span>
@@ -1521,12 +1576,14 @@ export const DictionaryView: React.FC<DictionaryViewProps> = ({
                       )}
                     </div>
 
-                    {/* Verb Forms (V1 / V2 / V3) or Regular Verb Badge */}
-                    <VerbConjugationBadge
-                      word={item.word}
-                      type={item.type}
-                      partOfSpeech={item.partOfSpeech}
-                    />
+                    {/* Verb Forms (V1 / V2 / V3) or Regular Verb Badge (Prep Cards only) */}
+                    {!isOfflineEntry && (
+                      <VerbConjugationBadge
+                        word={item.word}
+                        type={item.type}
+                        partOfSpeech={item.partOfSpeech}
+                      />
+                    )}
                   </div>
 
                   {/* Heart Favorite Button */}
@@ -1552,53 +1609,60 @@ export const DictionaryView: React.FC<DictionaryViewProps> = ({
                   <p className="text-base sm:text-lg font-bold text-[#0f172a] dark:text-[#f8fafc]">
                     {item.trMeaning}
                   </p>
-                  {item.isOnlineDict && item.enDefinition && item.enDefinition !== item.trMeaning && (
-                    <p className="text-xs sm:text-sm text-[#475569] dark:text-[#94a3b8] leading-relaxed">
-                      <span className="font-semibold text-[#0f766e] dark:text-[#2dd4bf] mr-1.5">
-                        Akademik Tanım (EN):
-                      </span>
-                      {item.enDefinition}
-                    </p>
-                  )}
+                  {isOnlineEntry &&
+                    item.trDefinition &&
+                    item.trDefinition.trim().length > 0 &&
+                    item.trDefinition.toLowerCase() !== item.trMeaning.toLowerCase() && (
+                      <p className="text-xs sm:text-sm text-[#475569] dark:text-[#94a3b8] leading-relaxed">
+                        <span className="font-semibold text-[#0f766e] dark:text-[#2dd4bf] mr-1.5">
+                          Türkçe Açıklama:
+                        </span>
+                        {item.trDefinition}
+                      </p>
+                    )}
                 </div>
 
-                {/* General Dictionary Fallback vs Rich/Online Card Content */}
-                {item.isGeneralDict ? (
+                {/* Clean Offline Dictionary Card (word + badge + type + meaning ONLY) vs General vs Rich Prep Card */}
+                {isOfflineEntry ? null : item.isGeneralDict ? (
                   <div className="mt-3.5 py-2.5 px-3.5 rounded-2xl bg-[#f8fafc] dark:bg-[#0f172a] border border-[#e2e8f0] dark:border-[#334155] text-xs text-[#475569] dark:text-[#94a3b8] flex items-center gap-2">
                     <span className="w-1.5 h-1.5 rounded-full bg-[#94a3b8] shrink-0" />
                     <span>Temel sözlük kaydı (Hazırlık kartı bulunmamaktadır).</span>
                   </div>
                 ) : (
                   <>
-                    {/* English Example Sentence (WITH ENGLISH AUDIO) & Turkish Translation (WITHOUT AUDIO) */}
-                    <div className="mt-3.5 bg-[#f8fafc] dark:bg-[#0f172a] rounded-2xl p-4 sm:p-5 border border-[#e2e8f0] dark:border-[#334155] space-y-2">
-                      <div className="flex items-start justify-between gap-2">
-                        <p className="text-sm sm:text-base font-semibold text-[#0f172a] dark:text-[#f8fafc] leading-relaxed">
-                          &quot;{item.enExample}&quot;
-                        </p>
-                        {/* ENGLISH Example Sentence Audio Speaker Button */}
-                        <button
-                          type="button"
-                          onClick={() => handleSpeakEnglish(item.enExample, `ex-${item.id}`)}
-                          className={`p-1.5 shrink-0 rounded-xl text-[#475569] hover:text-[#16a34a] hover:bg-[#ecfdf5] dark:hover:bg-[#334155] transition-colors ${
-                            isSpeakingEx ? 'text-[#16a34a] animate-pulse' : ''
-                          }`}
-                          title="İngilizce örnek cümleyi dinle"
-                        >
-                          <Volume2
-                            width={16}
-                            height={16}
-                            fill="none"
-                            stroke={isSpeakingEx ? '#16a34a' : '#64748b'}
-                            className="w-4 h-4"
-                          />
-                        </button>
+                    {/* English Example Sentence (WITH ENGLISH AUDIO) & Turkish Translation (only shown if a real example exists) */}
+                    {item.enExample && item.enExample.trim().length > 0 && (
+                      <div className="mt-3.5 bg-[#f8fafc] dark:bg-[#0f172a] rounded-2xl p-4 sm:p-5 border border-[#e2e8f0] dark:border-[#334155] space-y-2">
+                        <div className="flex items-start justify-between gap-2">
+                          <p className="text-sm sm:text-base font-semibold text-[#0f172a] dark:text-[#f8fafc] leading-relaxed">
+                            &quot;{item.enExample}&quot;
+                          </p>
+                          {/* ENGLISH Example Sentence Audio Speaker Button */}
+                          <button
+                            type="button"
+                            onClick={() => handleSpeakEnglish(item.enExample, `ex-${item.id}`)}
+                            className={`p-1.5 shrink-0 rounded-xl text-[#475569] hover:text-[#16a34a] hover:bg-[#ecfdf5] dark:hover:bg-[#334155] transition-colors ${
+                              isSpeakingEx ? 'text-[#16a34a] animate-pulse' : ''
+                            }`}
+                            title="İngilizce örnek cümleyi dinle"
+                          >
+                            <Volume2
+                              width={16}
+                              height={16}
+                              fill="none"
+                              stroke={isSpeakingEx ? '#16a34a' : '#64748b'}
+                              className="w-4 h-4"
+                            />
+                          </button>
+                        </div>
+                        {/* Turkish translation of example sentence (NO AUDIO BUTTON) */}
+                        {item.trExample && item.trExample.trim().length > 0 && (
+                          <p className="text-xs sm:text-sm text-[#475569] dark:text-[#94a3b8] italic">
+                            &quot;{item.trExample}&quot;
+                          </p>
+                        )}
                       </div>
-                      {/* Turkish translation of example sentence (NO AUDIO BUTTON) */}
-                      <p className="text-xs sm:text-sm text-[#475569] dark:text-[#94a3b8] italic">
-                        &quot;{item.trExample}&quot;
-                      </p>
-                    </div>
+                    )}
 
                     {/* Academic Prep Notes & Collocations Expandable Drawer */}
                     {(hasTip || hasCollocations) && (

@@ -7,7 +7,7 @@ const normCache = new Map<string, string>();
 const MAX_CACHE_SIZE = 4000;
 
 /**
- * Utility to normalize Turkish and English strings for fuzzy instant search.
+ * Utility to normalize Turkish and English strings for diacritic-tolerant prefix search.
  * Converts characters like ç, ğ, ı, ö, ş, ü to basic latin counterparts
  * and properly lowercases Turkish 'İ' and 'I'.
  */
@@ -36,35 +36,51 @@ export function normalizeForSearch(text: string): string {
 }
 
 /**
- * Checks if search query matches any target text either directly or normalized.
+ * Splits a string into lowercase Turkish/English word tokens for word-boundary prefix matching.
+ */
+function extractRawTokens(text: string): string[] {
+  if (!text) return [];
+  return text
+    .toLocaleLowerCase('tr-TR')
+    .split(/[^a-z0-9çğıöşüâîû]+/i)
+    .filter(Boolean);
+}
+
+/**
+ * Checks if search query matches any word start in target text (no mid-word .includes()).
  */
 export function matchesQuery(target: string, query: string): boolean {
   if (!query) return true;
   if (!target) return false;
 
-  const cleanTarget = target.toLocaleLowerCase('tr-TR');
-  const cleanQuery = query.toLocaleLowerCase('tr-TR');
+  const cleanQuery = query.trim().toLocaleLowerCase('tr-TR');
+  const normQuery = normalizeForSearch(query);
+  if (!normQuery) return true;
 
-  if (cleanTarget.includes(cleanQuery)) {
+  const rawTokens = extractRawTokens(target);
+  if (rawTokens.some((t) => t.startsWith(cleanQuery))) {
     return true;
   }
 
-  const normTarget = normalizeForSearch(target);
-  const normQuery = normalizeForSearch(query);
-
-  return normTarget.includes(normQuery);
+  const normTokens = normalizeForSearch(target).split(' ').filter(Boolean);
+  return normTokens.some((t) => t.startsWith(normQuery));
 }
 
 /**
- * High-performance precomputed index for a WordEntry to enable sub-millisecond search across 1000+ words.
+ * High-performance precomputed index for a WordEntry focusing STRICTLY on
+ * the English headword and short Turkish meaning (no example sentences or long definitions).
  */
 export interface WordSearchIndex {
   id: string;
   wordLower: string;
   wordNorm: string;
+  wordTokens: string[];
   meaningLower: string;
   meaningNorm: string;
-  fullBlob: string;
+  meaningRawTokens: string[];
+  meaningNormTokens: string[];
+  meaningSensesLower: string[];
+  meaningSensesNorm: string[];
 }
 
 const wordIndexCache = new WeakMap<WordEntry, WordSearchIndex>();
@@ -72,20 +88,34 @@ const wordIndexCache = new WeakMap<WordEntry, WordSearchIndex>();
 export function getWordSearchIndex(word: WordEntry): WordSearchIndex {
   let index = wordIndexCache.get(word);
   if (!index) {
-    const wordLower = word.word.toLowerCase();
-    const wordNorm = normalizeForSearch(word.word);
-    const meaningLower = word.trMeaning.toLowerCase();
-    const meaningNorm = normalizeForSearch(word.trMeaning);
-    const collocationsStr = (word.collocations || []).join(' ');
-    const fullBlob = `${wordNorm} ${meaningNorm} ${normalizeForSearch(word.enExample)} ${normalizeForSearch(word.trExample)} ${normalizeForSearch(collocationsStr)}`;
+    const wordLower = (word.word || '').trim().toLowerCase();
+    const wordNorm = normalizeForSearch(word.word || '');
+    const wordTokens = wordNorm ? wordNorm.split(' ').filter(Boolean) : [];
+
+    const meaningRaw = (word.trMeaning || '').trim();
+    const meaningLower = meaningRaw.toLocaleLowerCase('tr-TR');
+    const meaningNorm = normalizeForSearch(meaningRaw);
+    const meaningRawTokens = extractRawTokens(meaningRaw);
+    const meaningNormTokens = meaningNorm ? meaningNorm.split(' ').filter(Boolean) : [];
+
+    const rawSenses = meaningRaw
+      .split(/[,;/]/)
+      .map((s) => s.trim())
+      .filter(Boolean);
+    const meaningSensesLower = rawSenses.map((s) => s.toLocaleLowerCase('tr-TR'));
+    const meaningSensesNorm = rawSenses.map((s) => normalizeForSearch(s)).filter(Boolean);
 
     index = {
       id: word.id,
       wordLower,
       wordNorm,
+      wordTokens,
       meaningLower,
       meaningNorm,
-      fullBlob,
+      meaningRawTokens,
+      meaningNormTokens,
+      meaningSensesLower,
+      meaningSensesNorm,
     };
     wordIndexCache.set(word, index);
   }
@@ -93,31 +123,60 @@ export function getWordSearchIndex(word: WordEntry): WordSearchIndex {
 }
 
 /**
- * Tests a word against a search query using its precomputed index.
- * Handles single or multi-word tokens (e.g., "achieve goal").
+ * Strict prefix / word-start matcher on English headword and short Turkish meaning ONLY.
+ * Never performs mid-word substring (.includes()) matching and never searches inside
+ * example sentences, collocations, or long academic notes.
  */
 export function fastMatchWord(word: WordEntry, rawQuery: string): boolean {
   const trimmed = rawQuery.trim();
   if (!trimmed) return true;
 
   const index = getWordSearchIndex(word);
+  const queryLower = trimmed.toLowerCase();
+  const queryTrLower = trimmed.toLocaleLowerCase('tr-TR');
   const normQuery = normalizeForSearch(trimmed);
 
   if (!normQuery) return true;
 
-  // Single word fast-path
+  // Single-word query: must match the START of the English word or the START of a word in Turkish meaning
   if (!normQuery.includes(' ')) {
-    return (
-      index.wordLower.startsWith(normQuery) ||
-      index.wordNorm.startsWith(normQuery) ||
-      index.meaningNorm.startsWith(normQuery) ||
-      index.wordNorm.includes(normQuery) ||
-      index.meaningNorm.includes(normQuery) ||
-      index.fullBlob.includes(normQuery)
-    );
+    if (
+      index.wordLower.startsWith(queryLower) ||
+      index.wordNorm.startsWith(normQuery)
+    ) {
+      return true;
+    }
+
+    if (
+      index.meaningRawTokens.some((token) => token.startsWith(queryTrLower)) ||
+      index.meaningNormTokens.some((token) => token.startsWith(normQuery))
+    ) {
+      return true;
+    }
+
+    return false;
   }
 
-  // Multi-token query (all tokens must match the full indexed blob)
-  const tokens = normQuery.split(' ');
-  return tokens.every((token) => index.fullBlob.includes(token));
+  // Multi-word query (e.g. phrasal verb "carry out" or Turkish phrase "ders calismak")
+  if (
+    index.wordLower.startsWith(queryLower) ||
+    index.wordNorm.startsWith(normQuery) ||
+    index.meaningSensesLower.some((s) => s.startsWith(queryTrLower)) ||
+    index.meaningSensesNorm.some((s) => s.startsWith(normQuery))
+  ) {
+    return true;
+  }
+
+  const queryTokens = normQuery.split(' ').filter(Boolean);
+  if (queryTokens.length === 0) return true;
+
+  const matchesAllEnglish = queryTokens.every((qt) =>
+    index.wordTokens.some((wt) => wt.startsWith(qt))
+  );
+  if (matchesAllEnglish) return true;
+
+  const matchesAllTurkish = queryTokens.every((qt) =>
+    index.meaningNormTokens.some((mt) => mt.startsWith(qt))
+  );
+  return matchesAllTurkish;
 }

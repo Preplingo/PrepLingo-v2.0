@@ -357,7 +357,11 @@ export const FavoritesView: React.FC<FavoritesViewProps> = ({
             const isExpanded = expandedCardId === item.id;
             const isSpeakingWord = speakingId === `fav-word-${item.id}`;
             const isSpeakingEx = speakingId === `fav-ex-${item.id}`;
+            const isOnlineEntry = Boolean(item.isOnlineDict || item.id.startsWith('online_'));
+            const isOfflineEntry = Boolean(item.isOfflineDict || item.id.startsWith('offline_'));
             const hasCollocations = Boolean(
+              !isOnlineEntry &&
+              !isOfflineEntry &&
               Array.isArray(item.collocations) &&
               item.collocations.length > 0 &&
               item.collocations.some((c) => typeof c === 'string' && c.trim().length > 0)
@@ -365,7 +369,9 @@ export const FavoritesView: React.FC<FavoritesViewProps> = ({
             const hasTip = Boolean(
               item.academicNote &&
               item.academicNote.trim().length > 0 &&
-              !item.isGeneralDict
+              !item.isGeneralDict &&
+              !isOnlineEntry &&
+              !isOfflineEntry
             );
 
             return (
@@ -403,20 +409,26 @@ export const FavoritesView: React.FC<FavoritesViewProps> = ({
 
                     {/* Badges & Learning Status */}
                     <div className="flex flex-wrap items-center gap-1.5 pt-0.5">
-                      <span
-                        className={`text-[10px] font-bold uppercase px-2.5 py-0.5 rounded-lg tracking-wide ${getCefrBadgeClass(
-                          item.cefrLevel
-                        )}`}
-                      >
-                        {item.cefrLevel}
-                      </span>
+                      {isOfflineEntry ? (
+                        <span className="text-[10px] font-bold px-2.5 py-0.5 rounded-lg bg-[#E2F0D9] dark:bg-[#0F172A] text-[#0E2F0E] dark:text-[#F8FAFC] border border-[#B4C6A6] dark:border-[#334155]">
+                          Çevrimdışı Sözlük 📖
+                        </span>
+                      ) : (
+                        <span
+                          className={`text-[10px] font-bold uppercase px-2.5 py-0.5 rounded-lg tracking-wide ${getCefrBadgeClass(
+                            item.cefrLevel
+                          )}`}
+                        >
+                          {item.cefrLevel}
+                        </span>
+                      )}
 
                       <span
                         className={`text-[10px] px-2.5 py-0.5 rounded-lg ${getPosBadgeClass(
                           item.partOfSpeech
                         )}`}
                       >
-                        {getPosTurkishLabel(item.partOfSpeech)}
+                        {item.offlinePosLabel || getPosTurkishLabel(item.partOfSpeech)}
                       </span>
 
                       {onUpdateStatus && (
@@ -495,8 +507,21 @@ export const FavoritesView: React.FC<FavoritesViewProps> = ({
                 {/* In-Place Expanded Details Drawer */}
                 {isExpanded && (
                   <div className="mt-3.5 pt-3 border-t border-dashed border-[#e2e8f0] dark:border-[#334155] space-y-3 animate-in fade-in duration-150">
-                    {/* Example Sentence with Audio */}
-                    {item.enExample && (
+                    {/* Turkish Explanation for online dictionary entries (never raw English definition) */}
+                    {isOnlineEntry &&
+                      item.trDefinition &&
+                      item.trDefinition.trim().length > 0 &&
+                      item.trDefinition.toLowerCase() !== item.trMeaning.toLowerCase() && (
+                        <p className="text-xs sm:text-sm text-[#475569] dark:text-[#94a3b8] leading-relaxed">
+                          <span className="font-semibold text-[#2E7D32] dark:text-[#10B981] mr-1.5">
+                            Türkçe Açıklama:
+                          </span>
+                          {item.trDefinition}
+                        </p>
+                      )}
+
+                    {/* Example Sentence with Audio (only shown if a real example sentence exists) */}
+                    {item.enExample && item.enExample.trim().length > 0 && (
                       <div className="bg-[#f8fafc] dark:bg-[#0f172a] rounded-2xl p-4 border border-[#e2e8f0] dark:border-[#334155] space-y-1.5">
                         <div className="flex items-start justify-between gap-2">
                           <p className="text-sm font-semibold text-[#0f172a] dark:text-[#f8fafc] leading-relaxed">
@@ -519,7 +544,7 @@ export const FavoritesView: React.FC<FavoritesViewProps> = ({
                             />
                           </button>
                         </div>
-                        {item.trExample && (
+                        {item.trExample && item.trExample.trim().length > 0 && (
                           <p className="text-xs sm:text-sm text-[#475569] dark:text-[#94a3b8] italic">
                             &quot;{item.trExample}&quot;
                           </p>

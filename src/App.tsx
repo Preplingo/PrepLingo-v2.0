@@ -15,8 +15,13 @@ import { SplashScreen } from './components/SplashScreen';
 import { OfflineIndicator } from './components/OfflineIndicator';
 
 import { findExactInGeneralDictionary } from './data/generalDictionaryLoader';
+import {
+  findExactInOfflineDictionary,
+  ensureOfflineDictionaryLoaded,
+} from './data/offlineDictionaryLoader';
 import { findInEssentialFallback } from './data/essentialFallback';
 import { getCachedOnlineWord } from './utils/onlineDictionary';
+import { exportAllWordsToExcel } from './utils/excelExport';
 
 const STORAGE_KEY_CUSTOM_WORDS = 'preplingo_custom_words_v1';
 const STORAGE_KEY_FAVS = 'preplingo_favs_v2';
@@ -77,6 +82,11 @@ export default function App() {
   const toggleDarkMode = () => {
     setDarkMode((prev) => !prev);
   };
+
+  // Load external public/sozluk.json asynchronously in the background on startup
+  useEffect(() => {
+    ensureOfflineDictionaryLoaded();
+  }, []);
 
   // High score state for 60s Time Attack match game (synced across legacy & current keys)
   const [highScore, setHighScore] = useState<number>(() => {
@@ -139,7 +149,36 @@ export default function App() {
         const savedFavs = localStorage.getItem(STORAGE_KEY_FAVS);
         const savedStatus = localStorage.getItem(STORAGE_KEY_STATUS);
 
-        const customWords: WordEntry[] = savedCustom ? JSON.parse(savedCustom) : [];
+        const rawCustomWords: WordEntry[] = savedCustom ? JSON.parse(savedCustom) : [];
+        // Sanitize any previously saved online entries that still hold legacy template sentences or API synonyms
+        let customDirty = false;
+        const customWords: WordEntry[] = rawCustomWords.map((w) => {
+          const isOnline = Boolean(w.isOnlineDict || w.id?.startsWith('online_'));
+          if (!isOnline) return w;
+          const hasFakeSentence =
+            typeof w.enExample === 'string' &&
+            w.enExample.includes('used in English academic and general contexts');
+          const hasStaleCollocations = Array.isArray(w.collocations) && w.collocations.length > 0;
+          const hasRawEnDef = Boolean(w.enDefinition);
+          if (!hasFakeSentence && !hasStaleCollocations && !hasRawEnDef) return w;
+          customDirty = true;
+          return {
+            ...w,
+            enExample: hasFakeSentence ? '' : w.enExample,
+            exampleEn: hasFakeSentence ? '' : w.exampleEn,
+            trExample: hasFakeSentence ? '' : w.trExample,
+            exampleTr: hasFakeSentence ? '' : w.exampleTr,
+            enDefinition: undefined,
+            collocations: undefined,
+          };
+        });
+        if (customDirty) {
+          try {
+            localStorage.setItem(STORAGE_KEY_CUSTOM_WORDS, JSON.stringify(customWords));
+          } catch {
+            // ignore
+          }
+        }
         const favSet = new Set(savedFavs ? JSON.parse(savedFavs) : []);
         const statusMap: Record<string, WordStatus> = savedStatus ? JSON.parse(savedStatus) : {};
 
@@ -176,12 +215,14 @@ export default function App() {
       if (exists) {
         updated = prev.map((w) => (w.id === id ? { ...w, isFavorite: !w.isFavorite } : w));
       } else {
-        const cleanWord = id.replace(/^(ess|gen|online|elem)_/, '').replace(/_/g, ' ');
-        const rawKey = id.replace(/^(ess|gen|online|elem)_/, '');
+        const cleanWord = id.replace(/^(ess|gen|offline|online|elem)_/, '').replace(/_/g, ' ');
+        const rawKey = id.replace(/^(ess|gen|offline|online|elem)_/, '');
         const resolvedWord =
           fallbackEntry ||
           findInEssentialFallback(cleanWord) ||
           findInEssentialFallback(rawKey) ||
+          findExactInOfflineDictionary(cleanWord) ||
+          findExactInOfflineDictionary(rawKey) ||
           getCachedOnlineWord(cleanWord) ||
           getCachedOnlineWord(rawKey) ||
           findExactInGeneralDictionary(cleanWord) ||
@@ -245,11 +286,13 @@ export default function App() {
       if (exists) {
         updated = prev.map((w) => (w.id === id ? { ...w, status: newStatus } : w));
       } else {
-        const cleanWord = id.replace(/^(ess|gen|online)_/, '').replace(/_/g, ' ');
-        const rawKey = id.replace(/^(ess|gen|online)_/, '');
+        const cleanWord = id.replace(/^(ess|gen|offline|online)_/, '').replace(/_/g, ' ');
+        const rawKey = id.replace(/^(ess|gen|offline|online)_/, '');
         const fallbackWord =
           findInEssentialFallback(cleanWord) ||
           findInEssentialFallback(rawKey) ||
+          findExactInOfflineDictionary(cleanWord) ||
+          findExactInOfflineDictionary(rawKey) ||
           getCachedOnlineWord(cleanWord) ||
           getCachedOnlineWord(rawKey) ||
           findExactInGeneralDictionary(cleanWord) ||
@@ -364,6 +407,7 @@ export default function App() {
         onOpenAddWord={() => setIsAddWordOpen(true)}
         onOpenAbout={() => setIsAboutOpen(true)}
         onOpenBuyCoffee={() => setIsCoffeeModalOpen(true)}
+        onExportExcel={() => exportAllWordsToExcel(words)}
         darkMode={darkMode}
         onToggleDarkMode={toggleDarkMode}
       />
@@ -421,7 +465,7 @@ export default function App() {
 
         {activeTab === 'exercises' && (
           <ExercisesView
-            words={words}
+            words={words.filter((w) => !w.isOfflineDict && !w.id.startsWith('offline_'))}
             onToggleFavorite={handleToggleFavorite}
             onAddWordsToFavorites={handleAddWordsToFavorites}
           />

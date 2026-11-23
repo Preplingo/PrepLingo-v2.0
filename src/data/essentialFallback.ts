@@ -825,28 +825,33 @@ export function findInEssentialFallback(word: string): WordEntry | null {
 }
 
 /**
- * Fast synchronous prefix and substring search across essential fallback words.
+ * Fast synchronous prefix & word-start search across essential fallback words.
+ * Priority: (1) Exact English match, (2) English prefix match, (3) Turkish meaning word-start match.
  */
 export function searchEssentialFallback(query: string, maxResults = 25): WordEntry[] {
   const clean = (query || '').toLowerCase().trim();
   if (!clean) return [];
+  const cleanTr = (query || '').toLocaleLowerCase('tr-TR').trim();
 
   const exact: WordEntry[] = [];
   const prefix: WordEntry[] = [];
-  const substring: WordEntry[] = [];
+  const turkishStart: WordEntry[] = [];
 
   for (const item of ESSENTIAL_FALLBACK_WORDS) {
-    const w = item.word.toLowerCase();
-    const meaning = item.trMeaning.toLowerCase();
+    const w = item.word.toLowerCase().trim();
+    const meaningTokens = item.trMeaning
+      .toLocaleLowerCase('tr-TR')
+      .split(/[^a-z0-9çğıöşüâîû]+/i)
+      .filter(Boolean);
 
     if (w === clean) {
       exact.push(item);
     } else if (w.startsWith(clean)) {
       prefix.push(item);
-    } else if (w.includes(clean) || meaning.includes(clean)) {
-      substring.push(item);
+    } else if (meaningTokens.some((token) => token.startsWith(cleanTr))) {
+      turkishStart.push(item);
     }
   }
 
-  return [...exact, ...prefix, ...substring].slice(0, maxResults);
+  return [...exact, ...prefix, ...turkishStart].slice(0, maxResults);
 }

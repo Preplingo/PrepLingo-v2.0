@@ -152,9 +152,12 @@ export function deduplicateWordEntries(entries: any[]): WordEntry[] {
         prepExamTip: tip,
         collocations: Array.isArray(w.collocations) && w.collocations.length > 0 ? w.collocations : undefined,
         enDefinition: w.enDefinition || undefined,
+        trDefinition: w.trDefinition || undefined,
         isFavorite: Boolean(w.isFavorite),
         status: w.status || 'calisiliyor',
         isCustom: Boolean(w.isCustom),
+        isOfflineDict: Boolean(w.isOfflineDict),
+        offlinePosLabel: w.offlinePosLabel || undefined,
         isOnlineDict: Boolean(w.isOnlineDict),
       };
     })

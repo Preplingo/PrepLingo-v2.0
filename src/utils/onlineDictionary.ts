@@ -5,10 +5,47 @@ export interface OnlineLookupResponse {
   status: 'success' | 'not_found' | 'offline' | 'network_error';
 }
 
-const SESSION_CACHE_PREFIX = 'preplingo_online_dict_v2_';
+const CACHE_KEY_PREFIX = 'preplingo_online_dict_v3_';
+const LEGACY_CACHE_PREFIXES = [
+  'preplingo_online_dict_v1_',
+  'preplingo_online_dict_v2_',
+  'preplingo_online_cache_',
+];
 
 // In-memory cache for instant re-lookup during the session
 const memoryCache = new Map<string, WordEntry>();
+
+/**
+ * Purges any stale/legacy online dictionary cache entries from localStorage & sessionStorage
+ * so previously cached broken entries (with template sentences or untranslated English definitions)
+ * are never served again.
+ */
+export function purgeLegacyOnlineDictionaryCache(): void {
+  if (typeof window === 'undefined') return;
+  const storages: Array<Storage | undefined> = [window.localStorage, window.sessionStorage];
+
+  for (const storage of storages) {
+    if (!storage) continue;
+    try {
+      const keysToRemove: string[] = [];
+      for (let i = 0; i < storage.length; i++) {
+        const k = storage.key(i);
+        if (!k) continue;
+        if (LEGACY_CACHE_PREFIXES.some((prefix) => k.startsWith(prefix))) {
+          keysToRemove.push(k);
+        }
+      }
+      for (const k of keysToRemove) {
+        storage.removeItem(k);
+      }
+    } catch {
+      // Ignore storage access restrictions
+    }
+  }
+}
+
+// Run legacy cache cleanup immediately on module load
+purgeLegacyOnlineDictionaryCache();
 
 function normalizeOnlineKey(word: string): string {
   return word.toLowerCase().trim();
@@ -24,7 +61,7 @@ function mapApiPartOfSpeech(rawPos?: string): PartOfSpeech {
   return 'noun';
 }
 
-function cleanTurkishTranslation(rawText: string | undefined, sourceWord: string): string {
+function cleanTurkishTranslation(rawText: string | undefined, sourceText: string): string {
   if (!rawText) return '';
   const trimmed = rawText.trim();
   if (!trimmed) return '';
@@ -33,15 +70,53 @@ function cleanTurkishTranslation(rawText: string | undefined, sourceWord: string
   if (
     upper.includes('MYMEMORY WARNING') ||
     upper.includes('PLEASE SELECT TWO DISTINCT LANGUAGES') ||
-    upper.includes('QUERY LENGTH LIMIT')
+    upper.includes('QUERY LENGTH LIMIT') ||
+    upper.includes('INVALID LANGUAGE PAIR') ||
+    upper.includes('NO QUERY SPECIFIED')
   ) {
     return '';
   }
-  // If translation just echoed the exact English word with no change, discard
-  if (trimmed.toLowerCase() === sourceWord.toLowerCase()) {
+  // If translation just echoed the exact English source text with no change, discard
+  const normTranslated = trimmed.toLowerCase().replace(/[^a-z0-9çğıöşü]/g, '');
+  const normSource = sourceText.toLowerCase().replace(/[^a-z0-9çğıöşü]/g, '');
+  if (!normTranslated || normTranslated === normSource) {
     return '';
   }
   return trimmed;
+}
+
+/**
+ * Translates an English word or sentence/definition into Turkish via MyMemory API.
+ */
+async function translateEnToTr(text: string, signal?: AbortSignal): Promise<string> {
+  const cleanText = text.trim();
+  if (!cleanText) return '';
+
+  // MyMemory GET query limit safety (~450 chars)
+  const boundedText = cleanText.length > 420 ? cleanText.slice(0, 420) : cleanText;
+
+  try {
+    const res = await fetch(
+      `https://api.mymemory.translated.net/get?q=${encodeURIComponent(boundedText)}&langpair=en|tr`,
+      { signal }
+    );
+    if (!res.ok) return '';
+    const json = await res.json();
+
+    let translated = cleanTurkishTranslation(json?.responseData?.translatedText, boundedText);
+    if (!translated && Array.isArray(json?.matches)) {
+      for (const match of json.matches) {
+        const candidate = cleanTurkishTranslation(match?.translation, boundedText);
+        if (candidate) {
+          translated = candidate;
+          break;
+        }
+      }
+    }
+    return translated;
+  } catch {
+    return '';
+  }
 }
 
 /**
@@ -92,7 +167,7 @@ function appendTurkishInfinitive(text: string): string {
 }
 
 /**
- * Retrieve a previously fetched online word synchronously from memory or sessionStorage.
+ * Retrieve a previously fetched online word synchronously from memory or sessionStorage (v3).
  */
 export function getCachedOnlineWord(word: string): WordEntry | null {
   const key = normalizeOnlineKey(word);
@@ -104,7 +179,7 @@ export function getCachedOnlineWord(word: string): WordEntry | null {
 
   if (typeof window !== 'undefined' && window.sessionStorage) {
     try {
-      const raw = window.sessionStorage.getItem(`${SESSION_CACHE_PREFIX}${key}`);
+      const raw = window.sessionStorage.getItem(`${CACHE_KEY_PREFIX}${key}`);
       if (raw) {
         const parsed = JSON.parse(raw) as WordEntry;
         memoryCache.set(key, parsed);
@@ -125,7 +200,7 @@ function cacheOnlineWord(word: string, entry: WordEntry): void {
   memoryCache.set(key, entry);
   if (typeof window !== 'undefined' && window.sessionStorage) {
     try {
-      window.sessionStorage.setItem(`${SESSION_CACHE_PREFIX}${key}`, JSON.stringify(entry));
+      window.sessionStorage.setItem(`${CACHE_KEY_PREFIX}${key}`, JSON.stringify(entry));
     } catch {
       // ignore storage quota errors
     }
@@ -134,8 +209,9 @@ function cacheOnlineWord(word: string, entry: WordEntry): void {
 
 /**
  * Tier 3 Automatic Online Dictionary Lookup:
- * Queries Free Dictionary API (English phonetic, POS, academic definition, example)
- * and MyMemory Translation API (Turkish meaning) in parallel, caching results in memory + sessionStorage.
+ * Queries Free Dictionary API (phonetic, POS, definition, real example if available)
+ * and MyMemory Translation API (Turkish meaning + Turkish-translated definition & example).
+ * Never injects synthetic template sentences or collocations from API synonyms.
  */
 export async function lookupOnlineDictionary(
   query: string,
@@ -147,7 +223,7 @@ export async function lookupOnlineDictionary(
     return { result: null, status: 'not_found' };
   }
 
-  // 1. Check in-memory / session cache first for instant result
+  // 1. Check in-memory / v3 session cache first for instant result
   const cached = getCachedOnlineWord(key);
   if (cached) {
     return { result: cached, status: 'success' };
@@ -164,12 +240,9 @@ export async function lookupOnlineDictionary(
       `https://api.dictionaryapi.dev/api/v2/entries/en/${encoded}`,
       { signal }
     );
-    const trPromise = fetch(
-      `https://api.mymemory.translated.net/get?q=${encoded}&langpair=en|tr`,
-      { signal }
-    ).catch(() => null);
+    const trWordPromise = translateEnToTr(cleanWord, signal);
 
-    const [dictRes, trRes] = await Promise.all([dictPromise, trPromise]);
+    const [dictRes, initialTrMeaning] = await Promise.all([dictPromise, trWordPromise]);
 
     if (signal?.aborted) {
       return { result: null, status: 'network_error' };
@@ -206,10 +279,9 @@ export async function lookupOnlineDictionary(
     // Extract Part of Speech
     const partOfSpeech = mapApiPartOfSpeech(firstMeaning?.partOfSpeech);
 
-    // Extract primary English academic definition and example sentence
+    // Extract primary English definition and real example sentence (if available)
     let enDefinition = '';
     let enExample = '';
-    const synonymsList: string[] = [];
 
     for (const m of meanings) {
       const defs = Array.isArray(m.definitions) ? m.definitions : [];
@@ -222,45 +294,32 @@ export async function lookupOnlineDictionary(
         }
         if (enDefinition && enExample) break;
       }
-      if (Array.isArray(m.synonyms)) {
-        for (const s of m.synonyms) {
-          if (typeof s === 'string' && s.trim() && synonymsList.length < 4 && !synonymsList.includes(s.trim())) {
-            synonymsList.push(s.trim());
-          }
-        }
-      }
+      if (enDefinition && enExample) break;
     }
 
-    // Extract optional Turkish translation from MyMemory
-    let trMeaning = '';
-    if (trRes && trRes.ok) {
-      try {
-        const trJson = await trRes.json();
-        trMeaning = cleanTurkishTranslation(trJson?.responseData?.translatedText, cleanWord);
+    // Translate English definition (and real example sentence if present) to Turkish in parallel
+    const [translatedDef, translatedEx] = await Promise.all([
+      enDefinition ? translateEnToTr(enDefinition, signal) : Promise.resolve(''),
+      enExample ? translateEnToTr(enExample, signal) : Promise.resolve(''),
+    ]);
 
-        // If responseData was empty or identical, try matches array for a better quality match
-        if (!trMeaning && Array.isArray(trJson?.matches)) {
-          for (const match of trJson.matches) {
-            const candidate = cleanTurkishTranslation(match?.translation, cleanWord);
-            if (candidate) {
-              trMeaning = candidate;
-              break;
-            }
-          }
-        }
-      } catch {
-        // Ignore Turkish API parse errors; English academic definition is still shown
-      }
+    if (signal?.aborted) {
+      return { result: null, status: 'network_error' };
     }
 
+    let trMeaning = initialTrMeaning;
     if (partOfSpeech === 'verb' && trMeaning) {
       trMeaning = appendTurkishInfinitive(trMeaning);
     }
 
     const displayWord = (firstEntry.word || cleanWord).trim();
-    const finalMeaning = trMeaning || enDefinition || displayWord;
-    const finalExampleEn =
-      enExample || `The word "${displayWord}" is used in English academic and general contexts.`;
+    const finalMeaning = trMeaning || translatedDef || displayWord;
+
+    // Only keep trDefinition if it was genuinely translated and adds info beyond trMeaning
+    const finalTrDefinition =
+      translatedDef && translatedDef.toLowerCase() !== finalMeaning.toLowerCase()
+        ? translatedDef
+        : undefined;
 
     const wordEntry: WordEntry = {
       id: `online_${key.replace(/[^a-z0-9]/g, '_')}`,
@@ -272,16 +331,12 @@ export async function lookupOnlineDictionary(
       level: 'Genel',
       trMeaning: finalMeaning,
       meaning: finalMeaning,
-      enDefinition: enDefinition || undefined,
-      enExample: finalExampleEn,
-      exampleEn: finalExampleEn,
-      trExample: trMeaning
-        ? `Çevrimiçi sözlük karşılığı: ${trMeaning}`
-        : 'Çevrimiçi sözlükten alınan örnek cümle.',
-      exampleTr: trMeaning
-        ? `Çevrimiçi sözlük karşılığı: ${trMeaning}`
-        : 'Çevrimiçi sözlükten alınan örnek cümle.',
-      collocations: synonymsList.length > 0 ? synonymsList : undefined,
+      trDefinition: finalTrDefinition,
+      enExample: enExample,
+      exampleEn: enExample,
+      trExample: enExample ? translatedEx : '',
+      exampleTr: enExample ? translatedEx : '',
+      collocations: undefined,
       isCustom: false,
       isFavorite: false,
       isGeneralDict: false,
