@@ -19,6 +19,7 @@ export interface MultipleChoiceQuestion {
   cefrLabel: string;
   sentenceBefore: string;
   sentenceAfter: string;
+  matchedText?: string;
   fullSentenceEn: string;
   fullSentenceTr: string;
   targetWord: WordEntry;
@@ -253,212 +254,7 @@ const ELEMENTARY_WORD_SEEDS: ElementarySeed[] = [
   { word: 'jacket', pos: 'noun', level: 'A1', tr: 'ceket, mont', enEx: 'Put on your warm jacket before going outside.', trEx: 'Dışarı çıkmadan önce kalın ceketini giy.' },
 ];
 
-/**
- * Curated everyday A1-A2 multiple-choice questions (daily life, school, hobbies, travel, weather, communication).
- */
-interface CuratedMcItem {
-  targetWord: string;
-  sentenceBefore: string;
-  sentenceAfter: string;
-  fullSentenceTr: string;
-  distractors: [string, string, string, string];
-  tipTr: string;
-}
 
-const CURATED_A1_A2_MC: CuratedMcItem[] = [
-  {
-    targetWord: 'umbrella',
-    sentenceBefore: 'Dark clouds are coming and it looks rainy, so do not forget to take your ',
-    sentenceAfter: '.',
-    fullSentenceTr: 'Kara bulutlar geliyor ve hava yağmurlu görünüyor, bu yüzden şemsiyeni almayı unutma.',
-    distractors: ['pencil', 'kitchen', 'guitar', 'ticket'],
-    tipTr: 'Yağmurlu havalarda kullanılan günlük eşya "umbrella" (şemsiye) kelimesidir.',
-  },
-  {
-    targetWord: 'breakfast',
-    sentenceBefore: 'Every morning at seven o\'clock, I eat cheese, eggs, and warm bread for ',
-    sentenceAfter: '.',
-    fullSentenceTr: 'Her sabah saat yedide kahvaltıda peynir, yumurta ve sıcak ekmek yerim.',
-    distractors: ['weather', 'homework', 'airport', 'garden'],
-    tipTr: 'Sabah yenilen ilk öğün "breakfast" (kahvaltı) olarak adlandırılır.',
-  },
-  {
-    targetWord: 'library',
-    sentenceBefore: 'It is too noisy at home, so I am going to study quietly in the school ',
-    sentenceAfter: '.',
-    fullSentenceTr: 'Ev çok gürültülü, bu yüzden okul kütüphanesinde sessizce ders çalışacağım.',
-    distractors: ['kitchen', 'beach', 'airport', 'ticket'],
-    tipTr: 'Sessizce kitap okunan ve ders çalışılan yer "library" (kütüphane) kelimesidir.',
-  },
-  {
-    targetWord: 'sunny',
-    sentenceBefore: 'The weather is warm and ',
-    sentenceAfter: ' today, so we can have a picnic in the park.',
-    fullSentenceTr: 'Bugün hava ılık ve güneşli, bu yüzden parkta piknik yapabiliriz.',
-    distractors: ['heavy', 'empty', 'angry', 'hungry'],
-    tipTr: 'Piknik yapmaya uygun açık ve güneşli hava "sunny" sıfatıyla anlatılır.',
-  },
-  {
-    targetWord: 'borrow',
-    sentenceBefore: 'I left my dictionary at home. Can I ',
-    sentenceAfter: ' yours for ten minutes?',
-    fullSentenceTr: 'Sözlüğümü evde unuttum. Seninkini on dakikalığına ödünç alabilir miyim?',
-    distractors: ['cook', 'walk', 'sleep', 'drive'],
-    tipTr: 'Birinden kısa süreliğine bir şey almak için "borrow" (ödünç almak) fiili kullanılır.',
-  },
-  {
-    targetWord: 'arrive',
-    sentenceBefore: 'Our train leaves Izmir at two o\'clock and will ',
-    sentenceAfter: ' in Eskişehir at six.',
-    fullSentenceTr: 'Trenimiz saat ikide İzmir\'den kalkıyor ve altıda Eskişehir\'e varacak.',
-    distractors: ['cook', 'forget', 'borrow', 'close'],
-    tipTr: 'Bir yere ulaşmak/varmak için "arrive in / at" fiili kullanılır.',
-  },
-  {
-    targetWord: 'invite',
-    sentenceBefore: 'Next Saturday is my birthday, and I want to ',
-    sentenceAfter: ' all my close friends to dinner.',
-    fullSentenceTr: 'Gelecek Cumartesi doğum günüm ve tüm yakın arkadaşlarımı akşam yemeğine davet etmek istiyorum.',
-    distractors: ['forget', 'shut', 'walk', 'wait'],
-    tipTr: 'Birini bir etkinliğe çağırmak için "invite" (davet etmek) fiili kullanılır.',
-  },
-  {
-    targetWord: 'ticket',
-    sentenceBefore: 'Before getting on the train, please show your ',
-    sentenceAfter: ' to the officer at the gate.',
-    fullSentenceTr: 'Trene binmeden önce lütfen kapıdaki görevliye biletinizi gösterin.',
-    distractors: ['soup', 'garden', 'pillow', 'weather'],
-    tipTr: 'Ulaşımda giriş için gösterilen belge "ticket" (bilet) kelimesidir.',
-  },
-  {
-    targetWord: 'quiet',
-    sentenceBefore: 'Please be ',
-    sentenceAfter: ' in the classroom because the other students are reading.',
-    fullSentenceTr: 'Diğer öğrenciler kitap okuduğu için lütfen sınıfta sessiz olun.',
-    distractors: ['cheap', 'rainy', 'hungry', 'heavy'],
-    tipTr: 'Gürültü yapmamak için "be quiet" (sessiz ol) kalıbı kullanılır.',
-  },
-  {
-    targetWord: 'explain',
-    sentenceBefore: 'I did not understand this grammar rule. Could you ',
-    sentenceAfter: ' it one more time?',
-    fullSentenceTr: 'Bu dilbilgisi kuralını anlamadım. Bir kez daha açıklayabilir misiniz?',
-    distractors: ['eat', 'buy', 'travel', 'sleep'],
-    tipTr: 'Anlaşılmayan bir konuyu anlatmak için "explain" (açıklamak) fiili kullanılır.',
-  },
-  {
-    targetWord: 'cold',
-    sentenceBefore: 'It is snowing outside and very ',
-    sentenceAfter: ', so wear your thick winter jacket.',
-    fullSentenceTr: 'Dışarıda kar yağıyor ve hava çok soğuk, bu yüzden kalın kışlık ceketini giy.',
-    distractors: ['funny', 'cheap', 'kind', 'tidy'],
-    tipTr: 'Karlı havalarda düşük sıcaklığı anlatan temel sıfat "cold" (soğuk) kelimesidir.',
-  },
-  {
-    targetWord: 'homework',
-    sentenceBefore: 'After school, Deniz always finishes her English ',
-    sentenceAfter: ' before playing computer games.',
-    fullSentenceTr: 'Okuldan sonra Deniz bilgisayar oyunu oynamadan önce her zaman İngilizce ödevini bitirir.',
-    distractors: ['breakfast', 'umbrella', 'airport', 'shirt'],
-    tipTr: 'Okul sonrası yapılan çalışmalar "homework" (ev ödevi) olarak ifade edilir.',
-  },
-  {
-    targetWord: 'relax',
-    sentenceBefore: 'After a long week of classes, I like to listen to soft music and ',
-    sentenceAfter: ' on Sunday.',
-    fullSentenceTr: 'Uzun bir ders haftasından sonra Pazar günü sakin müzik dinleyip rahatlamayı severim.',
-    distractors: ['arrive', 'borrow', 'close', 'ask'],
-    tipTr: 'Dinlenmek ve stresi atmak için "relax" (rahatlamak) fiili kullanılır.',
-  },
-  {
-    targetWord: 'airport',
-    sentenceBefore: 'We took a taxi early in the morning to reach the ',
-    sentenceAfter: ' before our flight.',
-    fullSentenceTr: 'Uçuşumuzdan önce havalimanına ulaşmak için sabah erkenden taksiye bindik.',
-    distractors: ['kitchen', 'notebook', 'guitar', 'garden'],
-    tipTr: 'Uçak yolculuğu öncesi gidilen yer "airport" (havalimanı) kelimesidir.',
-  },
-  {
-    targetWord: 'forget',
-    sentenceBefore: 'Please write my phone number in your notebook so you do not ',
-    sentenceAfter: ' it.',
-    fullSentenceTr: 'Unutmamak için lütfen telefon numaramı defterine yaz.',
-    distractors: ['swim', 'cook', 'travel', 'open'],
-    tipTr: 'Aklından çıkmaması için not almak bağlamında "forget" (unutmak) fiili kullanılır.',
-  },
-  {
-    targetWord: 'heavy',
-    sentenceBefore: 'This suitcase is full of books and very ',
-    sentenceAfter: '; can you help me carry it?',
-    fullSentenceTr: 'Bu bavul kitaplarla dolu ve çok ağır; taşımama yardım edebilir misin?',
-    distractors: ['sunny', 'quiet', 'early', 'funny'],
-    tipTr: 'Taşıması zor, ağırlığı fazla nesneler için "heavy" (ağır) sıfatı kullanılır.',
-  },
-  {
-    targetWord: 'guitar',
-    sentenceBefore: 'Music is my favorite hobby, and I practice playing the ',
-    sentenceAfter: ' every evening.',
-    fullSentenceTr: 'Müzik en sevdiğim hobim ve her akşam gitar çalma pratiği yapıyorum.',
-    distractors: ['soup', 'station', 'umbrella', 'weather'],
-    tipTr: 'Müzik hobisinde çalınan enstrüman "guitar" (gitar) kelimesidir.',
-  },
-  {
-    targetWord: 'cheap',
-    sentenceBefore: 'Students love this small bakery because the fresh sandwiches are very ',
-    sentenceAfter: '.',
-    fullSentenceTr: 'Öğrenciler bu küçük fırını seviyor çünkü taze sandviçler çok ucuz.',
-    distractors: ['rainy', 'afraid', 'angry', 'tired'],
-    tipTr: 'Uygun fiyatlı yiyecekler için "cheap" (ucuz) sıfatı kullanılır.',
-  },
-  {
-    targetWord: 'wait',
-    sentenceBefore: 'The bus comes every ten minutes, so we will not have to ',
-    sentenceAfter: ' very long.',
-    fullSentenceTr: 'Otobüs her on dakikada bir geliyor, bu yüzden çok uzun süre beklememiz gerekmeyecek.',
-    distractors: ['cook', 'write', 'close', 'buy'],
-    tipTr: 'Birinin ya da bir aracın gelmesini beklemek için "wait" fiili kullanılır.',
-  },
-  {
-    targetWord: 'camera',
-    sentenceBefore: 'She brought her new ',
-    sentenceAfter: ' to take lovely photos of the mountains and the sea.',
-    fullSentenceTr: 'Dağların ve denizin güzel fotoğraflarını çekmek için yeni fotoğraf makinesini getirdi.',
-    distractors: ['bread', 'lesson', 'kitchen', 'chair'],
-    tipTr: 'Fotoğraf çekmek için kullanılan cihaz "camera" (fotoğraf makinesi) kelimesidir.',
-  },
-  {
-    targetWord: 'hungry',
-    sentenceBefore: 'We walked for three hours without lunch, so everyone is very ',
-    sentenceAfter: ' now.',
-    fullSentenceTr: 'Öğle yemeği yemeden üç saat yürüdük, bu yüzden şimdi herkes çok aç.',
-    distractors: ['noisy', 'clean', 'sunny', 'short'],
-    tipTr: 'Yemek yeme ihtiyacı hissetmek "hungry" (aç) sıfatıyla anlatılır.',
-  },
-  {
-    targetWord: 'send',
-    sentenceBefore: 'When I reach Antalya tomorrow, I will ',
-    sentenceAfter: ' you a text message right away.',
-    fullSentenceTr: 'Yarın Antalya\'ya vardığımda sana hemen bir kısa mesaj göndereceğim.',
-    distractors: ['eat', 'sleep', 'swim', 'walk'],
-    tipTr: 'Mesaj veya mektup yollamak için "send" (göndermek) fiili kullanılır.',
-  },
-  {
-    targetWord: 'dictionary',
-    sentenceBefore: 'Whenever I see a new English word in class, I check its meaning in my ',
-    sentenceAfter: '.',
-    fullSentenceTr: 'Derste yeni bir İngilizce kelime gördüğümde anlamını sözlüğümde kontrol ederim.',
-    distractors: ['jacket', 'coffee', 'beach', 'train'],
-    tipTr: 'Kelime anlamlarına bakılan kaynak "dictionary" (sözlük) kelimesidir.',
-  },
-  {
-    targetWord: 'tired',
-    sentenceBefore: 'After playing football all afternoon, my brother felt very ',
-    sentenceAfter: ' and went to bed early.',
-    fullSentenceTr: 'Bütün öğleden sonra futbol oynadıktan sonra kardeşim çok yorgun hissetti ve erken yattı.',
-    distractors: ['cheap', 'sunny', 'wide', 'rich'],
-    tipTr: 'Fiziksel aktivite sonrası dinlenme isteği "tired" (yorgun) sıfatıyla ifade edilir.',
-  },
-];
 
 /**
  * 10 strictly CEFR-tagged Cloze Test passages:
@@ -1284,178 +1080,407 @@ function pickDistractorsInPool(
 }
 
 /**
- * Generates strictly CEFR-filtered 5-option (A–E) Multiple Choice questions.
- * - 'a1-a2': ONLY daily life, school, hobbies, travel, weather & simple communication questions with A1-A2 distractors.
- * - 'b1-b2': ONLY intermediate/upper-intermediate & academic prep questions with B1-B2 distractors.
- * - 'all': Balanced mix of A1-A2 and B1-B2 levels.
+ * Common English irregular inflections (verbs, nouns, adjectives) so example sentences using
+ * past/participle/plural/comparative forms match and hide the target word cleanly.
+ */
+const IRREGULAR_WORD_FORMS: Record<string, string[]> = {
+  arise: ['arose', 'arisen', 'arising', 'arises'],
+  awake: ['awoke', 'awoken', 'awaking', 'awakes'],
+  bad: ['worse', 'worst'],
+  be: ['am', 'is', 'are', 'was', 'were', 'been', 'being'],
+  bear: ['bore', 'borne', 'born', 'bearing', 'bears'],
+  beat: ['beaten', 'beating', 'beats'],
+  become: ['became', 'becoming', 'becomes'],
+  begin: ['began', 'begun', 'beginning', 'begins'],
+  bend: ['bent', 'bending', 'bends'],
+  bite: ['bit', 'bitten', 'biting', 'bites'],
+  blow: ['blew', 'blown', 'blowing', 'blows'],
+  break: ['broke', 'broken', 'breaking', 'breaks'],
+  bring: ['brought', 'bringing', 'brings'],
+  build: ['built', 'building', 'builds'],
+  burn: ['burnt', 'burned', 'burning', 'burns'],
+  buy: ['bought', 'buying', 'buys'],
+  catch: ['caught', 'catching', 'catches'],
+  child: ['children'],
+  choose: ['chose', 'chosen', 'choosing', 'chooses'],
+  come: ['came', 'coming', 'comes'],
+  cost: ['costing', 'costs'],
+  cut: ['cutting', 'cuts'],
+  deal: ['dealt', 'dealing', 'deals'],
+  dig: ['dug', 'digging', 'digs'],
+  do: ['does', 'did', 'done', 'doing'],
+  draw: ['drew', 'drawn', 'drawing', 'draws'],
+  dream: ['dreamt', 'dreamed', 'dreaming', 'dreams'],
+  drink: ['drank', 'drunk', 'drinking', 'drinks'],
+  drive: ['drove', 'driven', 'driving', 'drives'],
+  eat: ['ate', 'eaten', 'eating', 'eats'],
+  fall: ['fell', 'fallen', 'falling', 'falls'],
+  far: ['farther', 'farthest', 'further', 'furthest'],
+  feed: ['fed', 'feeding', 'feeds'],
+  feel: ['felt', 'feeling', 'feels'],
+  fight: ['fought', 'fighting', 'fights'],
+  find: ['found', 'finding', 'finds'],
+  fly: ['flew', 'flown', 'flying', 'flies'],
+  foot: ['feet'],
+  forbid: ['forbade', 'forbidden', 'forbidding', 'forbids'],
+  forget: ['forgot', 'forgotten', 'forgetting', 'forgets'],
+  forgive: ['forgave', 'forgiven', 'forgiving', 'forgives'],
+  freeze: ['froze', 'frozen', 'freezing', 'freezes'],
+  get: ['got', 'gotten', 'getting', 'gets'],
+  give: ['gave', 'given', 'giving', 'gives'],
+  go: ['goes', 'went', 'gone', 'going'],
+  good: ['better', 'best'],
+  grow: ['grew', 'grown', 'growing', 'grows'],
+  hang: ['hung', 'hanged', 'hanging', 'hangs'],
+  have: ['has', 'had', 'having'],
+  hear: ['heard', 'hearing', 'hears'],
+  hide: ['hid', 'hidden', 'hiding', 'hides'],
+  hit: ['hitting', 'hits'],
+  hold: ['held', 'holding', 'holds'],
+  hurt: ['hurting', 'hurts'],
+  keep: ['kept', 'keeping', 'keeps'],
+  know: ['knew', 'known', 'knowing', 'knows'],
+  lay: ['laid', 'laying', 'lays'],
+  lead: ['led', 'leading', 'leads'],
+  leaf: ['leaves'],
+  learn: ['learnt', 'learned', 'learning', 'learns'],
+  leave: ['left', 'leaving', 'leaves'],
+  lend: ['lent', 'lending', 'lends'],
+  let: ['letting', 'lets'],
+  lie: ['lay', 'lain', 'lying', 'lied', 'lies'],
+  life: ['lives'],
+  light: ['lit', 'lighted', 'lighting', 'lights'],
+  lose: ['lost', 'losing', 'loses'],
+  make: ['made', 'making', 'makes'],
+  man: ['men'],
+  mean: ['meant', 'meaning', 'means'],
+  meet: ['met', 'meeting', 'meets'],
+  mouse: ['mice'],
+  overcome: ['overcame', 'overcoming', 'overcomes'],
+  pay: ['paid', 'paying', 'pays'],
+  person: ['people', 'persons'],
+  prove: ['proved', 'proven', 'proving', 'proves'],
+  put: ['putting', 'puts'],
+  read: ['reading', 'reads'],
+  ride: ['rode', 'ridden', 'riding', 'rides'],
+  ring: ['rang', 'rung', 'ringing', 'rings'],
+  rise: ['rose', 'risen', 'rising', 'rises'],
+  run: ['ran', 'running', 'runs'],
+  say: ['said', 'saying', 'says'],
+  see: ['saw', 'seen', 'seeing', 'sees'],
+  seek: ['sought', 'seeking', 'seeks'],
+  sell: ['sold', 'selling', 'sells'],
+  send: ['sent', 'sending', 'sends'],
+  set: ['setting', 'sets'],
+  shake: ['shook', 'shaken', 'shaking', 'shakes'],
+  shine: ['shone', 'shined', 'shining', 'shines'],
+  shoot: ['shot', 'shooting', 'shoots'],
+  show: ['showed', 'shown', 'showing', 'shows'],
+  shut: ['shutting', 'shuts'],
+  sing: ['sang', 'sung', 'singing', 'sings'],
+  sink: ['sank', 'sunk', 'sinking', 'sinks'],
+  sit: ['sat', 'sitting', 'sits'],
+  sleep: ['slept', 'sleeping', 'sleeps'],
+  slide: ['slid', 'sliding', 'slides'],
+  speak: ['spoke', 'spoken', 'speaking', 'speaks'],
+  spend: ['spent', 'spending', 'spends'],
+  spread: ['spreading', 'spreads'],
+  stand: ['stood', 'standing', 'stands'],
+  steal: ['stole', 'stolen', 'stealing', 'steals'],
+  stick: ['stuck', 'sticking', 'sticks'],
+  strike: ['struck', 'striking', 'strikes'],
+  strive: ['strove', 'striven', 'striving', 'strives'],
+  swear: ['swore', 'sworn', 'swearing', 'swears'],
+  sweep: ['swept', 'sweeping', 'sweeps'],
+  swim: ['swam', 'swum', 'swimming', 'swims'],
+  take: ['took', 'taken', 'taking', 'takes'],
+  teach: ['taught', 'teaching', 'teaches'],
+  tear: ['tore', 'torn', 'tearing', 'tears'],
+  tell: ['told', 'telling', 'tells'],
+  think: ['thought', 'thinking', 'thinks'],
+  throw: ['threw', 'thrown', 'throwing', 'throws'],
+  tooth: ['teeth'],
+  undergo: ['underwent', 'undergone', 'undergoing', 'undergoes'],
+  understand: ['understood', 'understanding', 'understands'],
+  undertake: ['undertook', 'undertaken', 'undertaking', 'undertakes'],
+  wake: ['woke', 'woken', 'waking', 'wakes'],
+  wear: ['wore', 'worn', 'wearing', 'wears'],
+  wife: ['wives'],
+  win: ['won', 'winning', 'wins'],
+  withdraw: ['withdrew', 'withdrawn', 'withdrawing', 'withdraws'],
+  woman: ['women'],
+  write: ['wrote', 'written', 'writing', 'writes'],
+};
+
+function buildTokenInflectionForms(rawToken: string): string[] {
+  const token = rawToken.toLowerCase().trim();
+  if (!token) return [];
+  const forms = new Set<string>([token]);
+
+  const irregulars = IRREGULAR_WORD_FORMS[token];
+  if (irregulars) {
+    for (const form of irregulars) forms.add(form);
+  }
+
+  // Regular plural / verb / comparative / adverb suffixes
+  forms.add(`${token}s`);
+  forms.add(`${token}es`);
+  forms.add(`${token}ed`);
+  forms.add(`${token}d`);
+  forms.add(`${token}ing`);
+  forms.add(`${token}er`);
+  forms.add(`${token}est`);
+  forms.add(`${token}ly`);
+
+  // Silent 'e' drop (make -> making, decide -> decided, large -> larger, simple -> simply)
+  if (token.endsWith('e') && token.length > 2) {
+    const stem = token.slice(0, -1);
+    forms.add(`${stem}ing`);
+    forms.add(`${stem}ed`);
+    forms.add(`${stem}er`);
+    forms.add(`${stem}est`);
+    forms.add(`${stem}y`);
+    if (token.endsWith('le') && token.length > 3) {
+      forms.add(`${stem}y`);
+    }
+    if (token.endsWith('ue') && token.length > 3) {
+      forms.add(`${stem}ly`);
+    }
+  }
+
+  // 'ie' -> 'ying' (die -> dying, tie -> tying)
+  if (token.endsWith('ie') && token.length > 2) {
+    forms.add(`${token.slice(0, -2)}ying`);
+  }
+
+  // Consonant + 'y' -> 'i' + suffix (study -> studies/studied, happy -> happier/happiest/happily)
+  if (token.endsWith('y') && token.length > 2 && !/[aeiou]y$/.test(token)) {
+    const stem = token.slice(0, -1);
+    forms.add(`${stem}ies`);
+    forms.add(`${stem}ied`);
+    forms.add(`${stem}ier`);
+    forms.add(`${stem}iest`);
+    forms.add(`${stem}ily`);
+  }
+
+  // 'f'/'fe' -> 'ves' (wolf -> wolves, shelf -> shelves)
+  if (token.endsWith('f') && token.length > 2) {
+    forms.add(`${token.slice(0, -1)}ves`);
+  } else if (token.endsWith('fe') && token.length > 3) {
+    forms.add(`${token.slice(0, -2)}ves`);
+  }
+
+  // 'c' -> 'ck' (panic -> panicked/panicking)
+  if (token.endsWith('c') && token.length > 2) {
+    forms.add(`${token}ked`);
+    forms.add(`${token}king`);
+  }
+
+  // Doubled final consonant (stop -> stopped/stopping, big -> bigger/biggest, travel -> travelled, occur -> occurred)
+  if (token.length >= 3 && /[aeiou][bcdfghlmnprstvz]$/.test(token)) {
+    const lastChar = token[token.length - 1];
+    forms.add(`${token}${lastChar}ed`);
+    forms.add(`${token}${lastChar}ing`);
+    forms.add(`${token}${lastChar}er`);
+    forms.add(`${token}${lastChar}est`);
+  }
+
+  // Longer forms first so regex prefers full inflected tokens over base substrings
+  return Array.from(forms).sort((a, b) => b.length - a.length);
+}
+
+/**
+ * Finds the target word (or any of its inflected/suffixed forms) inside an English example sentence,
+ * case-insensitively with word boundaries. Supports both single words and multi-word expressions/phrasal verbs.
+ */
+function findWordMatchInSentence(
+  rawWord: string,
+  sentence: string
+): { index: number; length: number; matchedText: string } | null {
+  const cleaned = rawWord.trim();
+  if (!cleaned || !sentence) return null;
+
+  const tokens = cleaned.split(/\s+/).filter(Boolean);
+  if (tokens.length === 0) return null;
+
+  if (tokens.length === 1) {
+    const candidates = buildTokenInflectionForms(tokens[0]).map(escapeRegExp);
+    const regex = new RegExp(`\\b(?:${candidates.join('|')})\\b`, 'i');
+    const match = regex.exec(sentence);
+    if (!match) return null;
+    return {
+      index: match.index,
+      length: match[0].length,
+      matchedText: match[0],
+    };
+  }
+
+  // Multi-word phrase / phrasal verb: allow inflections on the first token (e.g., "carry out" -> "carried out")
+  const firstVariants = buildTokenInflectionForms(tokens[0]).map(escapeRegExp);
+  const restPattern = tokens.slice(1).map(escapeRegExp).join('\\s+');
+  const phraseRegex = new RegExp(
+    `\\b(?:${firstVariants.join('|')})\\s+${restPattern}\\b`,
+    'i'
+  );
+  const match = phraseRegex.exec(sentence);
+  if (!match) return null;
+  return {
+    index: match.index,
+    length: match[0].length,
+    matchedText: match[0],
+  };
+}
+
+/**
+ * Picks 4 unique random distractors for Multiple Choice:
+ * 1. First selects from words in the SAME CEFR band and SAME Part of Speech (without meaning overlap).
+ * 2. If fewer than 4 exist in that exact POS, tops up randomly from other words in the SAME CEFR band
+ *    so every question always has 5 distinct options (A-E).
+ */
+function pickMcDistractors(
+  target: WordEntry,
+  sameBandPool: WordEntry[],
+  excludedWordKeys: Set<string>,
+  needed = 4
+): WordEntry[] {
+  const targetPos = normalizePosGroup(target.partOfSpeech || target.type);
+  const usedKeys = new Set<string>(excludedWordKeys);
+  const selected: WordEntry[] = [];
+
+  const tryPickFrom = (candidates: WordEntry[], checkMeaningOverlap: boolean) => {
+    for (const candidate of shuffleArray(candidates)) {
+      if (selected.length >= needed) break;
+      const key = candidate.word.toLowerCase().trim();
+      if (!key || usedKeys.has(key)) continue;
+      if (!candidate.trMeaning || candidate.trMeaning.trim().length < 2) continue;
+      if (checkMeaningOverlap) {
+        if (hasMeaningOverlap(target, candidate)) continue;
+        if (selected.some((existing) => hasMeaningOverlap(existing, candidate))) continue;
+      }
+      selected.push(candidate);
+      usedKeys.add(key);
+    }
+  };
+
+  // Pass 1: Same CEFR level + Same Part of Speech (clean non-overlapping meaning)
+  const samePosCandidates = sameBandPool.filter(
+    (w) => normalizePosGroup(w.partOfSpeech || w.type) === targetPos
+  );
+  tryPickFrom(samePosCandidates, true);
+
+  // Pass 2: Same CEFR level + other Parts of Speech (if same POS had < 4 distractors)
+  if (selected.length < needed) {
+    const otherPosCandidates = sameBandPool.filter(
+      (w) => normalizePosGroup(w.partOfSpeech || w.type) !== targetPos
+    );
+    tryPickFrom(otherPosCandidates, true);
+  }
+
+  // Pass 3: Same CEFR level relaxed overlap guard (guarantees 4 distractors if pool is tiny)
+  if (selected.length < needed) {
+    tryPickFrom(sameBandPool, false);
+  }
+
+  return selected;
+}
+
+/**
+ * Dynamically generates 5-option (A-E) Multiple Choice questions strictly from words in the live
+ * database that contain an English example sentence.
+ * - Matches & blanks the target word case-insensitively including inflected/suffixed forms.
+ * - Strictly excludes words without an English example sentence.
+ * - Picks 4 same-level & same-POS distractors (with same-level fallback) and shuffles options with Fisher-Yates.
+ * - Shuffles candidate pool with Fisher-Yates and avoids repeating words solved in the current session.
  */
 export function generateMultipleChoiceQuiz(
   words: WordEntry[],
   levelFilter: ExerciseLevelFilter = 'all',
   count = 10,
-  recentWordKeys?: Set<string>
+  sessionSolvedWordKeys?: Set<string>
 ): MultipleChoiceQuestion[] {
-  const elemMap = buildElementaryEntryMap(words);
-  const elemList = Array.from(elemMap.values());
+  interface EligibleMcCandidate {
+    wordEntry: WordEntry;
+    band: CefrBand;
+    sentence: string;
+    match: { index: number; length: number; matchedText: string };
+  }
 
-  // Build A1-A2 curated questions with Fisher-Yates shuffle + anti-repeat preference
-  const buildA1A2Questions = (limit: number): MultipleChoiceQuestion[] => {
-    const results: MultipleChoiceQuestion[] = [];
-    const usedTargets = new Set<string>();
-
-    const freshCurated = shuffleArray(
-      CURATED_A1_A2_MC.filter((item) => !recentWordKeys?.has(item.targetWord.toLowerCase()))
-    );
-    const repeatCurated = shuffleArray(
-      CURATED_A1_A2_MC.filter((item) => recentWordKeys?.has(item.targetWord.toLowerCase()))
-    );
-
-    // 1. Curated everyday A1-A2 items (unseen first, then fallback)
-    for (const item of [...freshCurated, ...repeatCurated]) {
-      if (results.length >= limit) break;
-      const target = elemMap.get(item.targetWord.toLowerCase());
-      if (!target || usedTargets.has(target.word.toLowerCase())) continue;
-
-      const distractorEntries: WordEntry[] = [];
-      for (const dWord of item.distractors) {
-        const entry = elemMap.get(dWord.toLowerCase());
-        if (entry) distractorEntries.push(entry);
-      }
-      if (distractorEntries.length < 4) {
-        const excluded = new Set<string>([
-          target.word.toLowerCase(),
-          ...distractorEntries.map((d) => d.word.toLowerCase()),
-        ]);
-        const extra = pickDistractorsInPool(target, elemList, excluded, 4 - distractorEntries.length);
-        distractorEntries.push(...extra);
-      }
-      if (distractorEntries.length < 4) continue;
-
-      const isSentenceStart = item.sentenceBefore.trim().length === 0;
-      const rawOptions = shuffleArray([target, ...distractorEntries.slice(0, 4)]);
-      const options: QuizOption[] = rawOptions.map((entry, idx) => ({
-        letter: OPTION_LETTERS[idx],
-        text: isSentenceStart
-          ? entry.word.charAt(0).toUpperCase() + entry.word.slice(1)
-          : entry.word,
-        wordEntry: entry,
-      }));
-      const correctOption = options.find((o) => o.wordEntry.id === target.id)!;
-      const posTr = getPosTurkishName(target.partOfSpeech || target.type);
-
-      usedTargets.add(target.word.toLowerCase());
-      results.push({
-        id: `mc_a12_${target.id}_${results.length}`,
-        cefrBand: 'a1-a2',
-        cefrLabel: target.cefrLevel,
-        sentenceBefore: item.sentenceBefore,
-        sentenceAfter: item.sentenceAfter,
-        fullSentenceEn: `${item.sentenceBefore}${correctOption.text}${item.sentenceAfter}`,
-        fullSentenceTr: item.fullSentenceTr,
-        targetWord: target,
-        options,
-        correctLetter: correctOption.letter,
-        explanationTr: `"${target.word}" (${posTr}, ${target.cefrLevel}) "${target.trMeaning}" anlamına gelir. ${item.tipTr}`,
-      });
-    }
-
-    // 2. Also include any clean, short everyday A1-A2 words from dictionaryData (strictly no heavy topics)
-    if (results.length < limit) {
-      const cleanDictA12 = shuffleArray(
-        words.filter((w) => {
-          if (classifyWordCefrBand(w) !== 'a1-a2') return false;
-          if (!w.enExample || w.enExample.length < 18 || w.enExample.length > 88) return false;
-          if (usedTargets.has(w.word.toLowerCase().trim())) return false;
-          const regex = new RegExp(`\\b${escapeRegExp(w.word.trim())}\\b`, 'i');
-          return regex.test(w.enExample);
-        })
-      );
-
-      for (const target of cleanDictA12) {
-        if (results.length >= limit) break;
-        const regex = new RegExp(`\\b${escapeRegExp(target.word.trim())}\\b`, 'i');
-        const match = regex.exec(target.enExample);
-        if (!match) continue;
-
-        const sentenceBefore = target.enExample.slice(0, match.index);
-        const sentenceAfter = target.enExample.slice(match.index + match[0].length);
-        const isSentenceStart = sentenceBefore.trim().length === 0;
-
-        const excluded = new Set<string>([target.word.toLowerCase().trim()]);
-        const distractors = pickDistractorsInPool(target, elemList, excluded, 4);
-        if (distractors.length < 4) continue;
-
-        const rawOptions = shuffleArray([target, ...distractors]);
-        const options: QuizOption[] = rawOptions.map((entry, idx) => ({
-          letter: OPTION_LETTERS[idx],
-          text: isSentenceStart
-            ? entry.word.charAt(0).toUpperCase() + entry.word.slice(1)
-            : entry.word,
-          wordEntry: entry,
-        }));
-        const correctOption = options.find((o) => o.wordEntry.id === target.id)!;
-        const posTr = getPosTurkishName(target.partOfSpeech || target.type);
-
-        usedTargets.add(target.word.toLowerCase().trim());
-        results.push({
-          id: `mc_a12d_${target.id}_${results.length}`,
-          cefrBand: 'a1-a2',
-          cefrLabel: target.cefrLevel,
-          sentenceBefore,
-          sentenceAfter,
-          fullSentenceEn: target.enExample,
-          fullSentenceTr: target.trExample || '',
-          targetWord: target,
-          options,
-          correctLetter: correctOption.letter,
-          explanationTr: `"${target.word}" (${posTr}, ${target.cefrLevel}) "${target.trMeaning}" anlamına gelir ve bu cümledeki boşluğu tamamlar.`,
-          examTip: target.academicNote || target.prepExamTip || undefined,
-        });
-      }
-    }
-
-    return shuffleArray(results);
+  // Deduplicate words by lowercase key and partition ALL database words by CEFR band for distractors
+  const allBandWords: Record<CefrBand, WordEntry[]> = {
+    'a1-a2': [],
+    'b1-b2': [],
+  };
+  const eligibleByBand: Record<CefrBand, EligibleMcCandidate[]> = {
+    'a1-a2': [],
+    'b1-b2': [],
   };
 
-  // Build B1-B2 questions strictly from the B1-B2 academic pool with Fisher-Yates shuffle + anti-repeat
-  const buildB1B2Questions = (limit: number): MultipleChoiceQuestion[] => {
-    const bandWords = words.filter((w) => classifyWordCefrBand(w) === 'b1-b2');
-    const distractorPool = bandWords;
+  const seenPoolKeys = new Set<string>();
+  for (const w of words) {
+    const rawWord = w.word?.trim();
+    if (!rawWord) continue;
+    const key = rawWord.toLowerCase();
+    if (seenPoolKeys.has(key)) continue;
+    seenPoolKeys.add(key);
 
-    const validBandWords = bandWords.filter((w) => {
-      if (!w.word || !w.enExample || w.enExample.trim().length < 24) return false;
-      const regex = new RegExp(`\\b${escapeRegExp(w.word.trim())}\\b`, 'i');
-      return regex.test(w.enExample);
+    const band = classifyWordCefrBand(w);
+    allBandWords[band].push(w);
+
+    // Strictly exclude words that have no English example sentence or no Turkish meaning
+    const sentence = (w.enExample || w.exampleEn || '').trim();
+    if (!sentence || !w.trMeaning || w.trMeaning.trim().length < 2) continue;
+
+    const match = findWordMatchInSentence(rawWord, sentence);
+    if (!match) continue;
+
+    eligibleByBand[band].push({
+      wordEntry: w,
+      band,
+      sentence,
+      match,
     });
+  }
 
-    const freshCandidates = shuffleArray(
-      validBandWords.filter((w) => !recentWordKeys?.has(w.word.toLowerCase().trim()))
-    );
-    const repeatCandidates = shuffleArray(
-      validBandWords.filter((w) => recentWordKeys?.has(w.word.toLowerCase().trim()))
-    );
-    const orderedCandidates = [...freshCandidates, ...repeatCandidates];
+  const buildQuestionsForBand = (band: CefrBand, limit: number): MultipleChoiceQuestion[] => {
+    const bandCandidates = eligibleByBand[band];
+    if (bandCandidates.length === 0 || limit <= 0) return [];
 
+    // Prioritize words NOT yet solved in this session (Fisher-Yates shuffled)
+    const unseenCandidates = shuffleArray(
+      bandCandidates.filter(
+        (c) => !sessionSolvedWordKeys?.has(c.wordEntry.word.toLowerCase().trim())
+      )
+    );
+    // Only fall back to previously solved words if unseen pool cannot fill the requested count
+    const seenFallbackCandidates =
+      unseenCandidates.length < limit
+        ? shuffleArray(
+            bandCandidates.filter((c) =>
+              sessionSolvedWordKeys?.has(c.wordEntry.word.toLowerCase().trim())
+            )
+          )
+        : [];
+
+    const orderedCandidates = [...unseenCandidates, ...seenFallbackCandidates];
+    const sameBandDistractorPool = allBandWords[band];
     const results: MultipleChoiceQuestion[] = [];
-    const usedIds = new Set<string>();
+    const usedTargetKeys = new Set<string>();
 
-    for (const target of orderedCandidates) {
+    for (const item of orderedCandidates) {
       if (results.length >= limit) break;
-      if (usedIds.has(target.id)) continue;
+      const target = item.wordEntry;
+      const targetKey = target.word.toLowerCase().trim();
+      if (usedTargetKeys.has(targetKey)) continue;
 
-      const regex = new RegExp(`\\b${escapeRegExp(target.word.trim())}\\b`, 'i');
-      const match = regex.exec(target.enExample);
-      if (!match) continue;
-
-      const sentenceBefore = target.enExample.slice(0, match.index);
-      const sentenceAfter = target.enExample.slice(match.index + match[0].length);
-      const isSentenceStart = sentenceBefore.trim().length === 0;
-
-      const excluded = new Set<string>([target.word.toLowerCase().trim()]);
-      const distractors = pickDistractorsInPool(target, distractorPool, excluded, 4);
+      const excluded = new Set<string>([targetKey]);
+      const distractors = pickMcDistractors(target, sameBandDistractorPool, excluded, 4);
       if (distractors.length < 4) continue;
 
-      const rawOptions = shuffleArray([target, ...distractors]);
+      const sentenceBefore = item.sentence.slice(0, item.match.index);
+      const sentenceAfter = item.sentence.slice(item.match.index + item.match.length);
+      const isSentenceStart = sentenceBefore.trim().length === 0;
+
+      const rawOptions = shuffleArray([target, ...distractors.slice(0, 4)]);
       const options: QuizOption[] = rawOptions.map((entry, idx) => ({
         letter: OPTION_LETTERS[idx],
         text: isSentenceStart
@@ -1464,23 +1489,33 @@ export function generateMultipleChoiceQuiz(
         wordEntry: entry,
       }));
 
-      const correctOption = options.find((o) => o.wordEntry.id === target.id)!;
-      const posTr = getPosTurkishName(target.partOfSpeech || target.type);
-      const displayCefr = target.cefrLevel === 'B1' || target.cefrLevel === 'B2' ? target.cefrLevel : 'B2';
+      const correctOption = options.find((o) => o.wordEntry.id === target.id);
+      if (!correctOption) continue;
 
-      usedIds.add(target.id);
+      const posTr = getPosTurkishName(target.partOfSpeech || target.type);
+      const displayCefr: CefrLevel =
+        band === 'a1-a2'
+          ? target.cefrLevel === 'A1' || target.cefrLevel === 'A2'
+            ? target.cefrLevel
+            : 'A2'
+          : target.cefrLevel === 'B1' || target.cefrLevel === 'B2'
+          ? target.cefrLevel
+          : 'B2';
+
+      usedTargetKeys.add(targetKey);
       results.push({
-        id: `mc_b1b2_${target.id}_${results.length}`,
-        cefrBand: 'b1-b2',
+        id: `mc_${band}_${target.id}_${results.length}`,
+        cefrBand: band,
         cefrLabel: displayCefr,
         sentenceBefore,
         sentenceAfter,
-        fullSentenceEn: target.enExample,
-        fullSentenceTr: target.trExample || '',
+        matchedText: item.match.matchedText,
+        fullSentenceEn: item.sentence,
+        fullSentenceTr: (target.trExample || target.exampleTr || '').trim(),
         targetWord: target,
         options,
         correctLetter: correctOption.letter,
-        explanationTr: `"${target.word}" (${posTr}, ${displayCefr}) "${target.trMeaning}" anlamına gelir ve cümlenin bağlamını en doğru şekilde tamamlar.`,
+        explanationTr: `"${target.word}" (${posTr}, ${displayCefr}) "${target.trMeaning}" anlamına gelir.`,
         examTip: target.academicNote || target.prepExamTip || undefined,
       });
     }
@@ -1489,18 +1524,30 @@ export function generateMultipleChoiceQuiz(
   };
 
   if (levelFilter === 'a1-a2') {
-    return shuffleArray(buildA1A2Questions(count));
+    return shuffleArray(buildQuestionsForBand('a1-a2', count));
   }
   if (levelFilter === 'b1-b2') {
-    return shuffleArray(buildB1B2Questions(count));
+    return shuffleArray(buildQuestionsForBand('b1-b2', count));
   }
 
-  // 'all': Balanced mix of A1-A2 (4) and B1-B2 (6)
-  const mixed = [
-    ...buildA1A2Questions(4),
-    ...buildB1B2Questions(6),
-  ];
-  return shuffleArray(mixed).slice(0, count);
+  // 'all': Balanced mix of A1-A2 (4) and B1-B2 (6), filling from the other band if one is short
+  const a12Questions = buildQuestionsForBand('a1-a2', Math.min(4, count));
+  const b12Questions = buildQuestionsForBand('b1-b2', Math.max(0, count - a12Questions.length));
+  const combined = [...a12Questions, ...b12Questions];
+
+  if (combined.length < count) {
+    const existingKeys = new Set(combined.map((q) => q.targetWord.word.toLowerCase().trim()));
+    const combinedExcluded = new Set<string>([
+      ...(sessionSolvedWordKeys ? Array.from(sessionSolvedWordKeys) : []),
+      ...Array.from(existingKeys),
+    ]);
+    const extraA12 = buildQuestionsForBand('a1-a2', count - combined.length).filter(
+      (q) => !combinedExcluded.has(q.targetWord.word.toLowerCase().trim())
+    );
+    combined.push(...extraA12);
+  }
+
+  return shuffleArray(combined).slice(0, count);
 }
 
 /**

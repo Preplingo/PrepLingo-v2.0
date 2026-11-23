@@ -98,6 +98,9 @@ export const ExercisesView: React.FC<ExercisesViewProps> = ({
   const [mcQuestions, setMcQuestions] = useState<MultipleChoiceQuestion[]>([]);
   const [mcIndex, setMcIndex] = useState(0);
   const [mcAnswers, setMcAnswers] = useState<Record<number, OptionLetter>>({});
+  const [mcJustAddedKeys, setMcJustAddedKeys] = useState<Record<string, boolean>>({});
+  const [mcDuplicateNotice, setMcDuplicateNotice] = useState<string | null>(null);
+  const mcNoticeTimeoutRef = useRef<number | null>(null);
 
   // Cloze Test session state
   const [clozePassageIndex, setClozePassageIndex] = useState(0);
@@ -116,13 +119,25 @@ export const ExercisesView: React.FC<ExercisesViewProps> = ({
   // Summary screen flag
   const [showSummary, setShowSummary] = useState(false);
 
-  // Cleanup duplicate notice timer on unmount
+  // Cleanup duplicate notice timers on unmount
   useEffect(() => {
     return () => {
       if (synNoticeTimeoutRef.current !== null) {
         window.clearTimeout(synNoticeTimeoutRef.current);
       }
+      if (mcNoticeTimeoutRef.current !== null) {
+        window.clearTimeout(mcNoticeTimeoutRef.current);
+      }
     };
+  }, []);
+
+  const clearMcNotebookFeedback = useCallback(() => {
+    setMcJustAddedKeys({});
+    setMcDuplicateNotice(null);
+    if (mcNoticeTimeoutRef.current !== null) {
+      window.clearTimeout(mcNoticeTimeoutRef.current);
+      mcNoticeTimeoutRef.current = null;
+    }
   }, []);
 
   const clearSynNotebookFeedback = useCallback(() => {
@@ -171,7 +186,8 @@ export const ExercisesView: React.FC<ExercisesViewProps> = ({
     getShuffledClozePassagesForFilter('all')
   );
   const lastClozePassageIdRef = useRef<string | null>(null);
-  const recentMcWordsRef = useRef<Set<string>>(new Set());
+  // Session-wide solved word keys for Multiple Choice so words never repeat within the same session
+  const sessionSolvedMcWordsRef = useRef<Set<string>>(new Set());
   const recentSynWordsRef = useRef<Set<string>>(new Set());
 
   const recordTestCompletion = useCallback((correctCount: number, totalCount: number) => {
@@ -207,24 +223,39 @@ export const ExercisesView: React.FC<ExercisesViewProps> = ({
   const startMultipleChoice = useCallback(
     (overrideFilter?: ExerciseLevelFilter) => {
       const filterToUse = overrideFilter ?? levelFilter;
-      const generated = generateMultipleChoiceQuiz(words, filterToUse, 10, recentMcWordsRef.current);
+      const generated = generateMultipleChoiceQuiz(
+        words,
+        filterToUse,
+        10,
+        sessionSolvedMcWordsRef.current
+      );
       if (generated.length === 0) {
         setEmptyNotice(
           'Seçili seviyede örnek cümleli yeterli kelime bulunamadı. "Tümü", "A1–A2" veya "B1–B2" seviyelerinden birini seçebilirsiniz.'
         );
         return;
       }
-      recentMcWordsRef.current = new Set(
-        generated.map((q) => q.targetWord.word.toLowerCase().trim())
-      );
+
+      const generatedKeys = generated.map((q) => q.targetWord.word.toLowerCase().trim());
+      const hasAnyUnseen = generatedKeys.some((key) => !sessionSolvedMcWordsRef.current.has(key));
+      if (!hasAnyUnseen) {
+        // Pool exhausted for this session: start a fresh cycle with only the new round marked
+        sessionSolvedMcWordsRef.current = new Set(generatedKeys);
+      } else {
+        for (const key of generatedKeys) {
+          sessionSolvedMcWordsRef.current.add(key);
+        }
+      }
+
       setEmptyNotice(null);
       setMcQuestions(generated);
       setMcIndex(0);
       setMcAnswers({});
+      clearMcNotebookFeedback();
       setShowSummary(false);
       setActiveMode('multiple-choice');
     },
-    [words, levelFilter]
+    [words, levelFilter, clearMcNotebookFeedback]
   );
 
   const startClozeTest = useCallback(
@@ -294,6 +325,7 @@ export const ExercisesView: React.FC<ExercisesViewProps> = ({
   );
 
   const handleBackToHub = () => {
+    clearMcNotebookFeedback();
     clearSynNotebookFeedback();
     setActiveMode(null);
     setShowSummary(false);
@@ -302,10 +334,15 @@ export const ExercisesView: React.FC<ExercisesViewProps> = ({
   // Option selection handlers
   const handleSelectMcOption = (letter: OptionLetter) => {
     if (mcAnswers[mcIndex]) return;
+    const currentWordKey = mcQuestions[mcIndex]?.targetWord.word.toLowerCase().trim();
+    if (currentWordKey) {
+      sessionSolvedMcWordsRef.current.add(currentWordKey);
+    }
     setMcAnswers((prev) => ({ ...prev, [mcIndex]: letter }));
   };
 
   const handleNextMc = () => {
+    clearMcNotebookFeedback();
     if (mcIndex + 1 < mcQuestions.length) {
       setMcIndex((prev) => prev + 1);
     } else {
@@ -369,6 +406,78 @@ export const ExercisesView: React.FC<ExercisesViewProps> = ({
     const trimmed = raw.trim();
     if (!trimmed) return '';
     return trimmed.charAt(0).toUpperCase() + trimmed.slice(1);
+  };
+
+  const handleAddMcWordToNotebook = (word: WordEntry) => {
+    const normalizedKey = word.word.toLowerCase().trim();
+    const displayWord = formatWordLabel(word.word);
+
+    if (mcJustAddedKeys[normalizedKey]) return;
+
+    if (favoriteIdSet.has(word.id) || favoriteWordKeySet.has(normalizedKey)) {
+      setMcDuplicateNotice(`"${displayWord}" kelimesi zaten defterinizde mevcuttur.`);
+      if (mcNoticeTimeoutRef.current !== null) {
+        window.clearTimeout(mcNoticeTimeoutRef.current);
+      }
+      mcNoticeTimeoutRef.current = window.setTimeout(() => {
+        setMcDuplicateNotice(null);
+        mcNoticeTimeoutRef.current = null;
+      }, 4500);
+      return;
+    }
+
+    const existingEntry = wordsByKey.get(normalizedKey);
+    if (existingEntry) {
+      onAddWordsToFavorites([existingEntry.id], [existingEntry]);
+    } else {
+      onAddWordsToFavorites([word.id], [word]);
+    }
+
+    setMcJustAddedKeys((prev) => ({ ...prev, [normalizedKey]: true }));
+    setMcDuplicateNotice(null);
+    if (mcNoticeTimeoutRef.current !== null) {
+      window.clearTimeout(mcNoticeTimeoutRef.current);
+      mcNoticeTimeoutRef.current = null;
+    }
+  };
+
+  const renderMcAddButton = (word: WordEntry) => {
+    const normalizedKey = word.word.toLowerCase().trim();
+    const displayWord = formatWordLabel(word.word);
+    const isJustAdded = Boolean(mcJustAddedKeys[normalizedKey]);
+    const isAlreadySaved = favoriteIdSet.has(word.id) || favoriteWordKeySet.has(normalizedKey);
+
+    return (
+      <button
+        type="button"
+        disabled={isJustAdded}
+        aria-disabled={isJustAdded}
+        onClick={(e) => {
+          e.stopPropagation();
+          handleAddMcWordToNotebook(word);
+        }}
+        className={`min-h-[42px] px-4 py-2 rounded-xl border text-xs sm:text-sm font-semibold inline-flex items-center justify-center gap-1.5 transition-colors whitespace-nowrap ${
+          isJustAdded
+            ? 'bg-[#C8E6C9] dark:bg-[#064E3B] border-[#388E3C] dark:border-[#10B981] text-[#0E2F0E] dark:text-[#F8FAFC] cursor-default'
+            : isAlreadySaved
+            ? 'bg-[#FFFFFF] dark:bg-[#0F172A] border-[#81C784] dark:border-[#10B981] text-[#0E2F0E] dark:text-[#F8FAFC] hover:bg-[#E2F0D9] dark:hover:bg-[#1E293B] cursor-pointer active:scale-95'
+            : 'bg-[#FFFFFF] dark:bg-[#0F172A] border-[#B4C6A6] dark:border-[#334155] text-[#0E2F0E] dark:text-[#F8FAFC] hover:border-[#388E3C] dark:hover:border-[#4F46E5] cursor-pointer active:scale-95'
+        }`}
+        title={
+          isJustAdded
+            ? `"${displayWord}" Defterime eklendi`
+            : isAlreadySaved
+            ? `"${displayWord}" kelimesi zaten defterinizde mevcuttur`
+            : `"${displayWord}" (${word.trMeaning}) kelimesini Defterime ekle`
+        }
+      >
+        <span>
+          {isJustAdded
+            ? `"${displayWord}" Eklendi ✓`
+            : `+ "${displayWord}" Defterime Ekle`}
+        </span>
+      </button>
+    );
   };
 
   const handleAddSynonymWordToNotebook = (word: WordEntry) => {
@@ -864,6 +973,7 @@ export const ExercisesView: React.FC<ExercisesViewProps> = ({
     const isAnswered = Boolean(selectedLetter);
     const isCorrect = selectedLetter === currentQ.correctLetter;
     const chosenOption = currentQ.options.find((o) => o.letter === selectedLetter);
+    const correctOption = currentQ.options.find((o) => o.letter === currentQ.correctLetter);
 
     const liveCorrect = Object.entries(mcAnswers).filter(
       ([idx, letter]) => mcQuestions[Number(idx)]?.correctLetter === letter
@@ -874,44 +984,44 @@ export const ExercisesView: React.FC<ExercisesViewProps> = ({
     return (
       <div className="max-w-3xl mx-auto space-y-4 pb-24 animate-in fade-in duration-200">
         {/* Top Exam Progress Bar */}
-        <div className="bg-[#ffffff] dark:bg-[#1e293b] rounded-2xl p-4 border border-[#e2e8f0] dark:border-[#334155] shadow-2xs space-y-3">
+        <div className="bg-[#FFFFFF] dark:bg-[#1E293B] rounded-2xl p-4 border border-[#B4C6A6] dark:border-[#334155] space-y-3">
           <div className="flex items-center justify-between gap-2">
             <button
               type="button"
               onClick={handleBackToHub}
-              className="min-h-[36px] px-2.5 py-1 rounded-xl text-xs font-semibold text-[#475569] dark:text-[#cbd5e1] hover:bg-[#f1f5f9] dark:hover:bg-[#0f172a] inline-flex items-center gap-1.5 transition-colors cursor-pointer whitespace-nowrap"
+              className="min-h-[36px] px-2.5 py-1 rounded-xl border border-[#B4C6A6] dark:border-[#334155] text-xs font-semibold text-[#0E2F0E] dark:text-[#F8FAFC] hover:bg-[#E2F0D9] dark:hover:bg-[#0F172A] inline-flex items-center gap-1.5 transition-colors cursor-pointer whitespace-nowrap"
             >
               <ArrowLeft width={15} height={15} fill="none" stroke="currentColor" className="w-4 h-4" />
               <span>Alıştırmalar</span>
             </button>
 
             <div className="flex items-center gap-3 text-xs font-mono tabular-nums">
-              <span className="font-semibold text-[#0f172a] dark:text-[#f8fafc]">
+              <span className="font-semibold text-[#0E2F0E] dark:text-[#F8FAFC]">
                 Soru {mcIndex + 1}/{mcQuestions.length}
               </span>
-              <span className="inline-flex items-center gap-1 font-bold text-[#15803d] dark:text-[#34d399]">
+              <span className="inline-flex items-center gap-1 font-bold text-[#2E7D32] dark:text-[#10B981]">
                 <CheckCircle2 width={14} height={14} fill="none" stroke="currentColor" className="w-3.5 h-3.5" />
                 {liveCorrect}
               </span>
-              <span className="inline-flex items-center gap-1 font-bold text-[#be123c] dark:text-[#fda4af]">
+              <span className="inline-flex items-center gap-1 font-bold text-[#B91C1C] dark:text-[#F87171]">
                 <XCircle width={14} height={14} fill="none" stroke="currentColor" className="w-3.5 h-3.5" />
                 {liveWrong}
               </span>
             </div>
           </div>
 
-          <div className="w-full h-2 rounded-full bg-[#f1f5f9] dark:bg-[#0f172a] overflow-hidden">
+          <div className="w-full h-2 rounded-full bg-[#E2F0D9] dark:bg-[#0F172A] border border-[#B4C6A6] dark:border-[#334155] overflow-hidden">
             <div
-              className="h-full bg-[#16a34a] rounded-full transition-all duration-300"
+              className="h-full bg-[#388E3C] dark:bg-[#4F46E5] rounded-full transition-all duration-300"
               style={{ width: `${progressPct}%` }}
             />
           </div>
         </div>
 
         {/* Question Card */}
-        <div className="bg-[#ffffff] dark:bg-[#1e293b] rounded-3xl p-5 sm:p-7 border border-[#e2e8f0] dark:border-[#334155] shadow-sm space-y-5">
+        <div className="bg-[#FFFFFF] dark:bg-[#1E293B] rounded-3xl p-5 sm:p-7 border border-[#B4C6A6] dark:border-[#334155] space-y-5">
           {/* Quiet unboxed metadata line */}
-          <div className="flex items-center justify-between gap-2 text-xs text-[#64748b] dark:text-[#94a3b8]">
+          <div className="flex items-center justify-between gap-2 text-xs text-[#2E7D32] dark:text-[#94A3B8] font-medium">
             <span>
               Çoktan Seçmeli · {currentQ.cefrLabel} ·{' '}
               {getPosTurkishName(currentQ.targetWord.partOfSpeech || currentQ.targetWord.type)}
@@ -920,7 +1030,7 @@ export const ExercisesView: React.FC<ExercisesViewProps> = ({
               <button
                 type="button"
                 onClick={() => speakText(currentQ.fullSentenceEn, 'en-US', 0.92)}
-                className="inline-flex items-center gap-1 text-[#16a34a] dark:text-[#34d399] font-semibold hover:underline cursor-pointer"
+                className="inline-flex items-center gap-1 text-[#2E7D32] dark:text-[#10B981] font-semibold hover:underline cursor-pointer"
                 title="Cümleyi dinle"
               >
                 <Volume2 width={15} height={15} fill="none" stroke="currentColor" className="w-4 h-4" />
@@ -930,19 +1040,19 @@ export const ExercisesView: React.FC<ExercisesViewProps> = ({
           </div>
 
           {/* Sentence with Blank */}
-          <p className="text-base sm:text-lg font-medium leading-[1.8] text-[#0f172a] dark:text-[#f8fafc]">
+          <p className="text-base sm:text-lg font-medium leading-[1.8] text-[#0E2F0E] dark:text-[#F8FAFC]">
             {currentQ.sentenceBefore}
             <span
               className={`inline-block mx-1 px-2.5 py-0.5 rounded-lg font-bold border-b-2 transition-colors ${
                 !isAnswered
-                  ? 'bg-[#ecfdf5] dark:bg-[#0f172a] border-[#16a34a] text-[#15803d] dark:text-[#34d399] font-mono'
+                  ? 'bg-[#E2F0D9] dark:bg-[#0F172A] border-[#388E3C] dark:border-[#4F46E5] text-[#0E2F0E] dark:text-[#F8FAFC] font-mono'
                   : isCorrect
-                  ? 'bg-[#dcfce7] dark:bg-[#064e3b] border-[#16a34a] text-[#15803d] dark:text-[#6ee7b7]'
-                  : 'bg-[#fef3c7] dark:bg-[#451a03] border-[#d97706] text-[#92400e] dark:text-[#fcd34d]'
+                  ? 'bg-[#C8E6C9] dark:bg-[#064E3B] border-[#388E3C] dark:border-[#10B981] text-[#0E2F0E] dark:text-[#F8FAFC]'
+                  : 'bg-[#FEF3C7] dark:bg-[#451A03] border-[#D97706] text-[#92400E] dark:text-[#FCD34D]'
               }`}
             >
               {isAnswered
-                ? currentQ.options.find((o) => o.letter === currentQ.correctLetter)?.text
+                ? currentQ.matchedText || correctOption?.text
                 : '________'}
             </span>
             {currentQ.sentenceAfter}
@@ -961,22 +1071,22 @@ export const ExercisesView: React.FC<ExercisesViewProps> = ({
             <div
               className={`rounded-2xl p-4 sm:p-5 border space-y-3 animate-in fade-in duration-150 ${
                 isCorrect
-                  ? 'bg-[#ecfdf5] dark:bg-[#022c22] border-[#a7f3d0] dark:border-[#065f46]'
-                  : 'bg-[#fff1f2] dark:bg-[#1e293b] border-[#fecdd3] dark:border-[#9f1239]'
+                  ? 'bg-[#C8E6C9] dark:bg-[#064E3B] border-[#81C784] dark:border-[#10B981]'
+                  : 'bg-[#FEE2E2] dark:bg-[#1E293B] border-[#FCA5A5] dark:border-[#DC2626]'
               }`}
             >
               <div className="flex flex-wrap items-center justify-between gap-2">
                 <div className="flex items-center gap-2">
                   {isCorrect ? (
-                    <CheckCircle2 width={20} height={20} fill="none" stroke="#16a34a" className="w-5 h-5 shrink-0" />
+                    <CheckCircle2 width={20} height={20} fill="none" stroke="currentColor" className="w-5 h-5 shrink-0 text-[#2E7D32] dark:text-[#10B981]" />
                   ) : (
-                    <XCircle width={20} height={20} fill="none" stroke="#e11d48" className="w-5 h-5 shrink-0" />
+                    <XCircle width={20} height={20} fill="none" stroke="currentColor" className="w-5 h-5 shrink-0 text-[#B91C1C] dark:text-[#F87171]" />
                   )}
                   <span
                     className={`font-bold text-sm ${
                       isCorrect
-                        ? 'text-[#065f46] dark:text-[#6ee7b7]'
-                        : 'text-[#9f1239] dark:text-[#fda4af]'
+                        ? 'text-[#0E2F0E] dark:text-[#F8FAFC]'
+                        : 'text-[#991B1B] dark:text-[#FCA5A5]'
                     }`}
                   >
                     {isCorrect
@@ -988,32 +1098,46 @@ export const ExercisesView: React.FC<ExercisesViewProps> = ({
                 <button
                   type="button"
                   onClick={() => speakText(currentQ.targetWord.word, 'en-US', 0.92)}
-                  className="text-xs font-semibold text-[#0f172a] dark:text-[#f8fafc] inline-flex items-center gap-1 hover:text-[#16a34a] cursor-pointer"
+                  className="text-xs font-semibold text-[#0E2F0E] dark:text-[#F8FAFC] inline-flex items-center gap-1 hover:underline cursor-pointer"
                 >
                   <Volume2 width={14} height={14} fill="none" stroke="currentColor" className="w-3.5 h-3.5" />
                   <span>{currentQ.targetWord.word}</span>
                 </button>
               </div>
 
-              <p className="text-xs sm:text-sm text-[#334155] dark:text-[#e2e8f0] leading-relaxed">
-                {currentQ.explanationTr}
-              </p>
+              {/* Turkish Meaning */}
+              <div className="rounded-xl p-3 bg-[#FFFFFF] dark:bg-[#0F172A] border border-[#B4C6A6] dark:border-[#334155] space-y-1.5">
+                <p className="text-xs sm:text-sm text-[#0E2F0E] dark:text-[#F8FAFC] leading-relaxed">
+                  <span className="font-bold">{currentQ.targetWord.word}</span>
+                  <span className="text-[#2E7D32] dark:text-[#94A3B8]">
+                    {' '}({getPosTurkishName(currentQ.targetWord.partOfSpeech || currentQ.targetWord.type)}, {currentQ.cefrLabel})
+                  </span>
+                  {': '}
+                  <span className="font-semibold">{currentQ.targetWord.trMeaning}</span>
+                </p>
+
+                {/* Full Blankless English Sentence */}
+                <p className="text-xs sm:text-sm text-[#0E2F0E] dark:text-[#F8FAFC] leading-relaxed pt-1.5 border-t border-[#B4C6A6] dark:border-[#334155]">
+                  <span className="font-semibold text-[#2E7D32] dark:text-[#94A3B8]">Tam Cümle: </span>
+                  &ldquo;{currentQ.fullSentenceEn}&rdquo;
+                </p>
+
+                {currentQ.fullSentenceTr && (
+                  <p className="text-xs text-[#2E7D32] dark:text-[#94A3B8] italic">
+                    Çeviri: &ldquo;{currentQ.fullSentenceTr}&rdquo;
+                  </p>
+                )}
+              </div>
 
               {!isCorrect && chosenOption && (
-                <p className="text-xs text-[#9f1239] dark:text-[#fda4af]">
+                <p className="text-xs text-[#991B1B] dark:text-[#FCA5A5]">
                   Seçtiğiniz <strong>{chosenOption.wordEntry.word}</strong> kelimesi{' '}
                   &ldquo;{chosenOption.wordEntry.trMeaning}&rdquo; anlamına gelir.
                 </p>
               )}
 
-              {currentQ.fullSentenceTr && (
-                <p className="text-xs text-[#475569] dark:text-[#94a3b8] italic pt-1 border-t border-[#e2e8f0] dark:border-[#334155]">
-                  Çeviri: &ldquo;{currentQ.fullSentenceTr}&rdquo;
-                </p>
-              )}
-
               {currentQ.examTip && (
-                <p className="text-xs text-[#92400e] dark:text-[#fcd34d] flex items-start gap-1.5">
+                <p className="text-xs text-[#92400E] dark:text-[#FCD34D] flex items-start gap-1.5">
                   <Sparkles width={14} height={14} fill="none" stroke="currentColor" className="w-3.5 h-3.5 shrink-0 mt-0.5" />
                   <span>
                     <strong>Sınav İpucu:</strong> {currentQ.examTip}
@@ -1021,17 +1145,26 @@ export const ExercisesView: React.FC<ExercisesViewProps> = ({
                 </p>
               )}
 
+              {mcDuplicateNotice && (
+                <div
+                  role="status"
+                  className="rounded-xl px-3 py-2 bg-[#FEF3C7] dark:bg-[#451A03] border border-[#F59E0B] text-xs font-medium text-[#92400E] dark:text-[#FCD34D] flex items-center gap-2"
+                >
+                  <AlertCircle width={15} height={15} fill="none" stroke="currentColor" className="w-4 h-4 shrink-0" />
+                  <span>{mcDuplicateNotice}</span>
+                </div>
+              )}
+
               <div className="pt-2 flex flex-wrap items-center justify-between gap-2.5">
-                {renderNotebookToggle(currentQ.targetWord)}
+                {renderMcAddButton(currentQ.targetWord)}
 
                 <button
                   type="button"
                   onClick={handleNextMc}
-                  style={{ backgroundColor: '#16a34a', color: '#ffffff' }}
-                  className="legacy-btn-green min-h-[42px] px-5 py-2 rounded-xl bg-[#16a34a] hover:bg-[#15803d] text-[#ffffff] font-semibold text-xs sm:text-sm inline-flex items-center gap-1.5 shadow-xs transition-all cursor-pointer active:scale-95 whitespace-nowrap ml-auto"
+                  className="legacy-btn-green min-h-[42px] px-5 py-2 rounded-xl border border-[#2E7D32] dark:border-[#3F51B5] bg-[#388E3C] hover:bg-[#2E7D32] dark:bg-[#4F46E5] dark:hover:bg-[#3F51B5] text-[#FFFFFF] font-semibold text-xs sm:text-sm inline-flex items-center gap-1.5 transition-colors cursor-pointer active:scale-95 whitespace-nowrap ml-auto"
                 >
                   <span>{mcIndex + 1 < mcQuestions.length ? 'Sonraki Soru' : 'Skoru Gör'}</span>
-                  <ArrowRight width={16} height={16} fill="none" stroke="#ffffff" className="w-4 h-4" />
+                  <ArrowRight width={16} height={16} fill="none" stroke="#FFFFFF" className="w-4 h-4" />
                 </button>
               </div>
             </div>
