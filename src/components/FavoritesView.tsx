@@ -507,19 +507,6 @@ export const FavoritesView: React.FC<FavoritesViewProps> = ({
                 {/* In-Place Expanded Details Drawer */}
                 {isExpanded && (
                   <div className="mt-3.5 pt-3 border-t border-dashed border-[#e2e8f0] dark:border-[#334155] space-y-3 animate-in fade-in duration-150">
-                    {/* Turkish Explanation for online dictionary entries (never raw English definition) */}
-                    {isOnlineEntry &&
-                      item.trDefinition &&
-                      item.trDefinition.trim().length > 0 &&
-                      item.trDefinition.toLowerCase() !== item.trMeaning.toLowerCase() && (
-                        <p className="text-xs sm:text-sm text-[#475569] dark:text-[#94a3b8] leading-relaxed">
-                          <span className="font-semibold text-[#2E7D32] dark:text-[#10B981] mr-1.5">
-                            Türkçe Açıklama:
-                          </span>
-                          {item.trDefinition}
-                        </p>
-                      )}
-
                     {/* Example Sentence with Audio (only shown if a real example sentence exists) */}
                     {item.enExample && item.enExample.trim().length > 0 && (
                       <div className="bg-[#f8fafc] dark:bg-[#0f172a] rounded-2xl p-4 border border-[#e2e8f0] dark:border-[#334155] space-y-1.5">

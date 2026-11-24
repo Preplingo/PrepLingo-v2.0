@@ -33,6 +33,7 @@ import {
 } from '../data/offlineDictionaryLoader';
 import { lookupOnlineDictionary, getCachedOnlineWord } from '../utils/onlineDictionary';
 import { compareWordsAlphabetically } from '../data/initialWords';
+import { findDidYouMeanSuggestions } from '../utils/didYouMean';
 
 const ALPHABET = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ'.split('');
 
@@ -497,6 +498,30 @@ export const DictionaryView: React.FC<DictionaryViewProps> = ({
       return tr.split(/[,;/()]+/).some((part) => part.trim() === trimmedTrLower);
     });
   }, [localMatches, searchQuery]);
+
+  // Offline Levenshtein "Bunu mu demek istediniz?" suggestions:
+  // Performance guard: ONLY runs when local search returned 0 matches AND query has >= 3 chars.
+  const didYouMeanSuggestions = useMemo(() => {
+    const trimmed = searchQuery.trim();
+    if (localMatches.length > 0 || trimmed.length < 3) return [];
+    return findDidYouMeanSuggestions(
+      trimmed,
+      prepCardWords,
+      offlineDictionary.getEntriesForSuggestions(),
+      4
+    );
+  }, [searchQuery, localMatches.length, prepCardWords, isOfflineDictLoaded]);
+
+  const handleSelectDidYouMean = (suggestedWord: string) => {
+    setSearchQuery(suggestedWord);
+    setCefrFilter('Tümü');
+    setPosFilter('all');
+    setStatusFilter('all');
+    setShowSuggestions(false);
+    setActiveSuggestionIndex(-1);
+    setOnlineResults([]);
+    setOnlineErrorReason(null);
+  };
 
   // Stage 3: Automatic Online Lookup (500ms debounced on typing, 0ms on Search Button / Enter)
   // Triggered ONLY when a searched word (min 2 chars) is NOT found in Stage 1 or Stage 2.
@@ -1183,7 +1208,37 @@ export const DictionaryView: React.FC<DictionaryViewProps> = ({
           localMatches.length === 0 &&
           onlineResults.length === 0 &&
           searchQuery.trim().length >= 2 && (
-          <div className="pt-1">
+          <div className="pt-1 space-y-2.5">
+            {/* Offline Levenshtein "Bunu mu demek istediniz?" Interactive Suggestion Box */}
+            {didYouMeanSuggestions.length > 0 && (
+              <div className="rounded-2xl p-4 sm:p-5 bg-[#E2F0D9] dark:bg-[#0F172A] border border-[#B4C6A6] dark:border-[#334155] space-y-2.5 animate-in fade-in duration-150">
+                <div className="flex items-center gap-2">
+                  <Sparkles
+                    width={16}
+                    height={16}
+                    fill="none"
+                    stroke="currentColor"
+                    className="w-4 h-4 shrink-0 text-[#388E3C] dark:text-[#10B981]"
+                  />
+                  <span className="text-xs sm:text-sm font-bold text-[#0E2F0E] dark:text-[#F8FAFC]">
+                    Bunu mu demek istediniz?
+                  </span>
+                </div>
+                <div className="flex flex-wrap items-center gap-2">
+                  {didYouMeanSuggestions.map((suggestion) => (
+                    <button
+                      key={suggestion.word}
+                      type="button"
+                      onClick={() => handleSelectDidYouMean(suggestion.word)}
+                      className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl bg-[#FFFFFF] dark:bg-[#1E293B] border border-[#B4C6A6] dark:border-[#334155] text-xs sm:text-sm font-bold text-[#0E2F0E] dark:text-[#F8FAFC] hover:bg-[#388E3C] hover:text-[#FFFFFF] hover:border-[#388E3C] dark:hover:bg-[#4F46E5] dark:hover:text-[#FFFFFF] dark:hover:border-[#4F46E5] transition-colors cursor-pointer"
+                    >
+                      <span className="font-['Outfit']">{suggestion.word}</span>
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
+
             {!isOnline ||
             (typeof navigator !== 'undefined' && navigator.onLine === false) ||
             onlineErrorReason === 'offline' ||
@@ -1605,21 +1660,10 @@ export const DictionaryView: React.FC<DictionaryViewProps> = ({
                 </div>
 
                 {/* Primary Turkish Meaning */}
-                <div className="mt-4 pt-3.5 border-t border-[#f1f5f9] dark:border-[#334155] space-y-1.5">
+                <div className="mt-4 pt-3.5 border-t border-[#f1f5f9] dark:border-[#334155]">
                   <p className="text-base sm:text-lg font-bold text-[#0f172a] dark:text-[#f8fafc]">
                     {item.trMeaning}
                   </p>
-                  {isOnlineEntry &&
-                    item.trDefinition &&
-                    item.trDefinition.trim().length > 0 &&
-                    item.trDefinition.toLowerCase() !== item.trMeaning.toLowerCase() && (
-                      <p className="text-xs sm:text-sm text-[#475569] dark:text-[#94a3b8] leading-relaxed">
-                        <span className="font-semibold text-[#0f766e] dark:text-[#2dd4bf] mr-1.5">
-                          Türkçe Açıklama:
-                        </span>
-                        {item.trDefinition}
-                      </p>
-                    )}
                 </div>
 
                 {/* Clean Offline Dictionary Card (word + badge + type + meaning ONLY) vs General vs Rich Prep Card */}

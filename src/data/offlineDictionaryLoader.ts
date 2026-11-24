@@ -222,6 +222,10 @@ class ExternalOfflineDictionary {
     return this.items.length;
   }
 
+  public getEntriesForSuggestions(): ReadonlyArray<{ w: string; wLower: string; t: string }> {
+    return this.items;
+  }
+
   /**
    * O(1) exact lookup in deduplicated public/sozluk.json.
    */

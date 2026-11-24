@@ -5,10 +5,11 @@ export interface OnlineLookupResponse {
   status: 'success' | 'not_found' | 'offline' | 'network_error';
 }
 
-const CACHE_KEY_PREFIX = 'preplingo_online_dict_v3_';
+const CACHE_KEY_PREFIX = 'preplingo_online_dict_v4_';
 const LEGACY_CACHE_PREFIXES = [
   'preplingo_online_dict_v1_',
   'preplingo_online_dict_v2_',
+  'preplingo_online_dict_v3_',
   'preplingo_online_cache_',
 ];
 
@@ -297,10 +298,10 @@ export async function lookupOnlineDictionary(
       if (enDefinition && enExample) break;
     }
 
-    // Translate English definition (and real example sentence if present) to Turkish in parallel
-    const [translatedDef, translatedEx] = await Promise.all([
-      enDefinition ? translateEnToTr(enDefinition, signal) : Promise.resolve(''),
+    // Translate real example sentence to Turkish (and only translate definition as fallback if word translation failed)
+    const [translatedEx, fallbackDefMeaning] = await Promise.all([
       enExample ? translateEnToTr(enExample, signal) : Promise.resolve(''),
+      !initialTrMeaning && enDefinition ? translateEnToTr(enDefinition, signal) : Promise.resolve(''),
     ]);
 
     if (signal?.aborted) {
@@ -313,13 +314,7 @@ export async function lookupOnlineDictionary(
     }
 
     const displayWord = (firstEntry.word || cleanWord).trim();
-    const finalMeaning = trMeaning || translatedDef || displayWord;
-
-    // Only keep trDefinition if it was genuinely translated and adds info beyond trMeaning
-    const finalTrDefinition =
-      translatedDef && translatedDef.toLowerCase() !== finalMeaning.toLowerCase()
-        ? translatedDef
-        : undefined;
+    const finalMeaning = trMeaning || fallbackDefMeaning || displayWord;
 
     const wordEntry: WordEntry = {
       id: `online_${key.replace(/[^a-z0-9]/g, '_')}`,
@@ -331,7 +326,7 @@ export async function lookupOnlineDictionary(
       level: 'Genel',
       trMeaning: finalMeaning,
       meaning: finalMeaning,
-      trDefinition: finalTrDefinition,
+      trDefinition: undefined,
       enExample: enExample,
       exampleEn: enExample,
       trExample: enExample ? translatedEx : '',
