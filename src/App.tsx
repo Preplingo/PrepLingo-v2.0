@@ -205,6 +205,7 @@ export default function App() {
   const [isAddWordOpen, setIsAddWordOpen] = useState(false);
   const [isAboutOpen, setIsAboutOpen] = useState(false);
   const [isCoffeeModalOpen, setIsCoffeeModalOpen] = useState(false);
+  const [isExportingExcel, setIsExportingExcel] = useState(false);
   const [practiceWordId, setPracticeWordId] = useState<string | undefined>(undefined);
 
   // Sync favorites to localStorage with O(1) set operations
@@ -389,6 +390,18 @@ export default function App() {
     setActiveTab('games');
   };
 
+  const handleExportExcel = async () => {
+    if (isExportingExcel) return;
+    setIsExportingExcel(true);
+    try {
+      await exportAllWordsToExcel(words);
+    } catch (err) {
+      console.error('Excel export failed:', err);
+    } finally {
+      setIsExportingExcel(false);
+    }
+  };
+
   const favoritesCount = words.filter((w) => w.isFavorite).length;
 
   return (
@@ -407,7 +420,8 @@ export default function App() {
         onOpenAddWord={() => setIsAddWordOpen(true)}
         onOpenAbout={() => setIsAboutOpen(true)}
         onOpenBuyCoffee={() => setIsCoffeeModalOpen(true)}
-        onExportExcel={() => exportAllWordsToExcel(words)}
+        onExportExcel={handleExportExcel}
+        isExportingExcel={isExportingExcel}
         darkMode={darkMode}
         onToggleDarkMode={toggleDarkMode}
       />

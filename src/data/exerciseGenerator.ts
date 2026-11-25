@@ -1,4 +1,5 @@
 import { WordEntry, PartOfSpeech, CefrLevel } from '../types';
+import { EXTRA_CLOZE_PASSAGES } from './clozePassagesExtra';
 
 export type ExerciseMode = 'multiple-choice' | 'cloze-test' | 'synonyms';
 export type CefrBand = 'a1-a2' | 'b1-b2';
@@ -65,13 +66,17 @@ export interface SynonymQuestion {
   contextSentenceTr?: string;
 }
 
-interface RawClozeBlank {
+export interface RawClozeBlank {
   blankNumber: number;
   word: string;
-  pos: 'verb' | 'noun' | 'adj' | 'adv';
+  pos: 'verb' | 'noun' | 'adj' | 'adv' | 'preposition' | 'conjunction' | 'other';
   contextHintTr: string;
-  /** Optional explicit elementary distractors for A1-A2 passages to guarantee 100% CEFR purity */
+  /** Optional concise Turkish meaning for grammar/conjugated/preposition blanks */
+  trMeaning?: string;
+  /** Optional explicit distractors to guarantee exact grammar & CEFR purity */
   explicitDistractors?: string[];
+  /** Optional Turkish meanings for explicit distractors when not in dictionary */
+  distractorMeanings?: Record<string, string>;
 }
 
 export interface RawClozePassage {
@@ -717,6 +722,7 @@ export const CLOZE_PASSAGES: RawClozePassage[] = [
       },
     ],
   },
+  ...EXTRA_CLOZE_PASSAGES,
 ];
 
 /**
@@ -907,13 +913,16 @@ export function shuffleArray<T>(items: T[]): T[] {
   return arr;
 }
 
-export function normalizePosGroup(pos?: PartOfSpeech | string): 'verb' | 'noun' | 'adj' | 'adv' | 'conjunction' | 'other' {
+export function normalizePosGroup(
+  pos?: PartOfSpeech | string
+): 'verb' | 'noun' | 'adj' | 'adv' | 'preposition' | 'conjunction' | 'other' {
   if (!pos) return 'other';
   const p = pos.toLowerCase();
   if (p === 'verb' || p === 'v') return 'verb';
   if (p === 'noun' || p === 'n') return 'noun';
   if (p === 'adjective' || p === 'adj') return 'adj';
   if (p === 'adverb' || p === 'adv') return 'adv';
+  if (p === 'preposition' || p === 'prep') return 'preposition';
   if (p === 'conjunction' || p === 'conj') return 'conjunction';
   return 'other';
 }
@@ -928,10 +937,12 @@ export function getPosTurkishName(pos?: PartOfSpeech | string): string {
       return 'Sıfat';
     case 'adv':
       return 'Zarf';
+    case 'preposition':
+      return 'Edat';
     case 'conjunction':
       return 'Bağlaç';
     default:
-      return 'Kelime';
+      return 'Yapı';
   }
 }
 
@@ -1616,41 +1627,87 @@ export function buildClozeTestSession(
       ? elemList
       : words.filter((w) => classifyWordCefrBand(w) === 'b1-b2');
 
+  const mapClozePosToPartOfSpeech = (pos: RawClozeBlank['pos']): PartOfSpeech => {
+    if (pos === 'adj') return 'adjective';
+    if (pos === 'adv') return 'adverb';
+    if (pos === 'other') return 'conjunction';
+    return pos;
+  };
+
   const segments = raw.template.split(/\{\{\d+\}\}/g);
   const blanks: ClozeBlankQuestion[] = raw.blanks.map((blankDef) => {
     const lowerWord = blankDef.word.toLowerCase();
     const elemEntry = elemMap.get(lowerWord);
     const dictEntry = wordMap.get(lowerWord);
+    const mappedPos = mapClozePosToPartOfSpeech(blankDef.pos);
 
-    const targetWord: WordEntry =
-      raw.cefrBand === 'a1-a2' && elemEntry
-        ? elemEntry
-        : dictEntry ||
-          elemEntry || {
-            id: `cloze_${raw.id}_${blankDef.blankNumber}`,
-            word: blankDef.word,
-            partOfSpeech: blankDef.pos,
-            cefrLevel: (raw.cefrBand === 'a1-a2' ? 'A1' : 'B2') as CefrLevel,
-            trMeaning: blankDef.contextHintTr,
-            enExample: '',
-            trExample: '',
-          };
+    const baseFoundEntry =
+      raw.cefrBand === 'a1-a2' && elemEntry ? elemEntry : dictEntry || elemEntry;
 
-    const excluded = new Set<string>(raw.blanks.map((b) => b.word.toLowerCase()));
+    const targetWord: WordEntry = baseFoundEntry
+      ? blankDef.trMeaning && (blankDef.pos === 'preposition' || blankDef.pos === 'conjunction' || blankDef.pos === 'other')
+        ? {
+            ...baseFoundEntry,
+            partOfSpeech: mappedPos,
+            trMeaning: blankDef.trMeaning,
+          }
+        : baseFoundEntry
+      : {
+          id: `cloze_${raw.id}_${blankDef.blankNumber}`,
+          word: blankDef.word,
+          partOfSpeech: mappedPos,
+          cefrLevel: (raw.cefrBand === 'a1-a2' ? 'A2' : 'B2') as CefrLevel,
+          trMeaning: blankDef.trMeaning || blankDef.word,
+          enExample: '',
+          trExample: '',
+        };
+
+    const usedInThisBlank = new Set<string>([lowerWord]);
     let distractors: WordEntry[] = [];
 
     if (blankDef.explicitDistractors && blankDef.explicitDistractors.length > 0) {
-      for (const dWord of blankDef.explicitDistractors) {
-        const found = elemMap.get(dWord.toLowerCase()) || wordMap.get(dWord.toLowerCase());
-        if (found && !excluded.has(found.word.toLowerCase())) {
+      for (let dIdx = 0; dIdx < blankDef.explicitDistractors.length; dIdx++) {
+        const dWord = blankDef.explicitDistractors[dIdx];
+        const dKey = dWord.toLowerCase().trim();
+        if (!dKey || usedInThisBlank.has(dKey)) continue;
+
+        const customTr = blankDef.distractorMeanings?.[dWord] || blankDef.distractorMeanings?.[dKey];
+        const found = elemMap.get(dKey) || wordMap.get(dKey);
+
+        if (found && !customTr) {
           distractors.push(found);
-          excluded.add(found.word.toLowerCase());
+        } else if (found && customTr) {
+          distractors.push({
+            ...found,
+            partOfSpeech: mappedPos,
+            trMeaning: customTr,
+          });
+        } else {
+          distractors.push({
+            id: `cloze_${raw.id}_${blankDef.blankNumber}_d${dIdx}`,
+            word: dWord,
+            partOfSpeech: mappedPos,
+            cefrLevel: (raw.cefrBand === 'a1-a2' ? 'A2' : 'B2') as CefrLevel,
+            trMeaning: customTr || dWord,
+            enExample: '',
+            trExample: '',
+          });
         }
+        usedInThisBlank.add(dKey);
       }
     }
 
     if (distractors.length < 4) {
-      const extra = pickDistractorsInPool(targetWord, bandDistractorPool, excluded, 4 - distractors.length);
+      const fallbackExcluded = new Set<string>([
+        ...raw.blanks.map((b) => b.word.toLowerCase()),
+        ...Array.from(usedInThisBlank),
+      ]);
+      const extra = pickDistractorsInPool(
+        targetWord,
+        bandDistractorPool,
+        fallbackExcluded,
+        4 - distractors.length
+      );
       distractors = [...distractors, ...extra];
     }
 
@@ -1670,8 +1727,14 @@ export function buildClozeTestSession(
     const correctOption = options.find(
       (o) => o.wordEntry.word.toLowerCase() === targetWord.word.toLowerCase()
     )!;
-    const posTr = getPosTurkishName(targetWord.partOfSpeech || targetWord.type);
-    const explanationTr = `"${targetWord.word}" (${posTr}) "${targetWord.trMeaning}" anlamına gelir. ${blankDef.contextHintTr}`;
+    const posTr = getPosTurkishName(blankDef.pos || targetWord.partOfSpeech || targetWord.type);
+    const hasDistinctMeaning =
+      Boolean(targetWord.trMeaning) &&
+      targetWord.trMeaning.trim().toLowerCase() !== targetWord.word.trim().toLowerCase() &&
+      targetWord.trMeaning.trim() !== blankDef.contextHintTr.trim();
+    const explanationTr = hasDistinctMeaning
+      ? `"${targetWord.word}" (${posTr}) "${targetWord.trMeaning}" anlamına gelir. ${blankDef.contextHintTr}`
+      : blankDef.contextHintTr;
 
     return {
       blankNumber: blankDef.blankNumber,

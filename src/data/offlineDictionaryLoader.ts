@@ -33,24 +33,29 @@ export const PREP_CARD_WORD_SET: Set<string> = new Set(
 
 function mapOfflinePartOfSpeech(rawPos?: string): { pos: PartOfSpeech; label: string } {
   const cleaned = (rawPos || '').trim();
-  const lower = cleaned.toLocaleLowerCase('tr-TR');
+  const tokens = cleaned
+    .toLocaleLowerCase('tr-TR')
+    .split(/[,;/]+/)
+    .map((t) => t.trim())
+    .filter(Boolean);
+  const first = tokens[0] || '';
 
-  if (lower === 'fiil' || lower === 'verb' || lower === 'v') {
+  if (first === 'fiil' || first === 'verb' || first === 'v') {
     return { pos: 'verb', label: cleaned || 'Fiil' };
   }
-  if (lower === 'sıfat' || lower === 'sifat' || lower === 'adjective' || lower === 'adj') {
+  if (first === 'sıfat' || first === 'sifat' || first === 'adjective' || first === 'adj') {
     return { pos: 'adjective', label: cleaned || 'Sıfat' };
   }
-  if (lower === 'zarf' || lower === 'belirteç' || lower === 'adverb' || lower === 'adv') {
+  if (first === 'zarf' || first === 'belirteç' || first === 'adverb' || first === 'adv') {
     return { pos: 'adverb', label: cleaned || 'Zarf' };
   }
-  if (lower === 'edat' || lower === 'ilgeç' || lower === 'preposition' || lower === 'prep') {
+  if (first === 'edat' || first === 'ilgeç' || first === 'preposition' || first === 'prep') {
     return { pos: 'preposition', label: cleaned || 'Edat' };
   }
-  if (lower === 'bağlaç' || lower === 'baglac' || lower === 'conjunction' || lower === 'conj') {
+  if (first === 'bağlaç' || first === 'baglac' || first === 'conjunction' || first === 'conj') {
     return { pos: 'conjunction', label: cleaned || 'Bağlaç' };
   }
-  if (lower === 'isim' || lower === 'ad' || lower === 'noun' || lower === 'n') {
+  if (first === 'isim' || first === 'ad' || first === 'noun' || first === 'n') {
     return { pos: 'noun', label: cleaned || 'İsim' };
   }
 
@@ -223,6 +228,16 @@ class ExternalOfflineDictionary {
   }
 
   public getEntriesForSuggestions(): ReadonlyArray<{ w: string; wLower: string; t: string }> {
+    return this.items;
+  }
+
+  public getEntriesForExport(): ReadonlyArray<{
+    w: string;
+    wLower: string;
+    pLabel: string;
+    pos: PartOfSpeech;
+    t: string;
+  }> {
     return this.items;
   }
 

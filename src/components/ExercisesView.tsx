@@ -186,6 +186,8 @@ export const ExercisesView: React.FC<ExercisesViewProps> = ({
     getShuffledClozePassagesForFilter('all')
   );
   const lastClozePassageIdRef = useRef<string | null>(null);
+  // Tracks all Cloze passage IDs shown in the current cycle so no passage repeats until the entire pool is exhausted
+  const seenClozePassageIdsRef = useRef<Set<string>>(new Set());
   // Session-wide solved word keys for Multiple Choice so words never repeat within the same session
   const sessionSolvedMcWordsRef = useRef<Set<string>>(new Set());
   const recentSynWordsRef = useRef<Set<string>>(new Set());
@@ -263,19 +265,39 @@ export const ExercisesView: React.FC<ExercisesViewProps> = ({
       const filterToUse = overrideFilter ?? levelFilter;
       const isSpecificPick = typeof explicitIdx === 'number';
 
-      // On fresh entry or "Yeni Paragraf / Farklı Test", reshuffle via Fisher-Yates and avoid repeating last passage
       let passageList = shuffledClozePassages;
       let targetIdx = 0;
 
-      if (!isSpecificPick || overrideFilter !== undefined || passageList.length === 0) {
+      if (overrideFilter !== undefined || passageList.length === 0) {
         passageList = getShuffledClozePassagesForFilter(
           filterToUse,
           lastClozePassageIdRef.current ?? undefined
         );
         setShuffledClozePassages(passageList);
-        targetIdx = 0;
-      } else {
+      }
+
+      if (isSpecificPick) {
         targetIdx = explicitIdx;
+      } else {
+        // Walk through the shuffled pool in order without repeating any passage until every passage in the pool has been shown
+        const nextUnseenIdx = passageList.findIndex(
+          (p) => !seenClozePassageIdsRef.current.has(p.id)
+        );
+
+        if (nextUnseenIdx !== -1) {
+          targetIdx = nextUnseenIdx;
+        } else {
+          // Every passage in the active level pool has been completed/shown: start a fresh shuffled cycle
+          for (const p of passageList) {
+            seenClozePassageIdsRef.current.delete(p.id);
+          }
+          passageList = getShuffledClozePassagesForFilter(
+            filterToUse,
+            lastClozePassageIdRef.current ?? undefined
+          );
+          setShuffledClozePassages(passageList);
+          targetIdx = 0;
+        }
       }
 
       const session = buildClozeTestSession(words, filterToUse, targetIdx, passageList);
@@ -286,6 +308,7 @@ export const ExercisesView: React.FC<ExercisesViewProps> = ({
         return;
       }
       lastClozePassageIdRef.current = session.passageId;
+      seenClozePassageIdsRef.current.add(session.passageId);
       setEmptyNotice(null);
       setClozePassageIndex(session.passageIndex);
       setClozeSession(session);
@@ -864,7 +887,7 @@ export const ExercisesView: React.FC<ExercisesViewProps> = ({
               className="legacy-btn-green min-h-[44px] px-5 py-2.5 rounded-xl bg-[#388E3C] hover:bg-[#2E7D32] dark:bg-[#4F46E5] dark:hover:bg-[#3F51B5] text-[#FFFFFF] font-semibold text-xs sm:text-sm inline-flex items-center gap-2 transition-all cursor-pointer active:scale-95 whitespace-nowrap"
             >
               <RotateCcw width={16} height={16} fill="none" stroke="#FFFFFF" className="w-4 h-4 shrink-0" />
-              <span>{activeMode === 'cloze-test' ? 'Yeni Paragraf / Farklı Test' : 'Yeni Test Çöz'}</span>
+              <span>{activeMode === 'cloze-test' ? 'Yeni Paragraf / Sonraki Test' : 'Yeni Test Çöz'}</span>
             </button>
 
             <button
@@ -1240,35 +1263,18 @@ export const ExercisesView: React.FC<ExercisesViewProps> = ({
               </h2>
             </div>
 
-            {/* Strictly filtered & Fisher-Yates shuffled passage switcher + Random button */}
-            <div className="flex flex-wrap items-center gap-1.5">
-              {shuffledClozePassages.map((p, idx) => (
-                <button
-                  key={p.id}
-                  type="button"
-                  onClick={() => startClozeTest(idx)}
-                  className={`w-7 h-7 rounded-lg text-xs font-mono font-bold border transition-colors cursor-pointer ${
-                    idx === clozeSession.passageIndex
-                      ? 'legacy-btn-green bg-[#388E3C] dark:bg-[#4F46E5] text-[#FFFFFF] border-[#2E7D32] dark:border-[#3F51B5]'
-                      : 'bg-[#E2F0D9] dark:bg-[#0F172A] text-[#0E2F0E] dark:text-[#94A3B8] border-[#B4C6A6] dark:border-[#334155] hover:border-[#388E3C] dark:hover:border-[#4F46E5]'
-                  }`}
-                  title={`${p.cefrBadge} · ${p.titleTr}`}
-                >
-                  {idx + 1}
-                </button>
-              ))}
-              {shuffledClozePassages.length > 1 && (
-                <button
-                  type="button"
-                  onClick={() => startClozeTest()}
-                  className="h-7 px-2.5 rounded-lg text-[11px] font-semibold bg-[#FFFFFF] dark:bg-[#0F172A] text-[#0E2F0E] dark:text-[#F8FAFC] border border-[#B4C6A6] dark:border-[#334155] hover:border-[#388E3C] dark:hover:border-[#4F46E5] inline-flex items-center gap-1 transition-colors cursor-pointer whitespace-nowrap"
-                  title="Rastgele farklı bir paragraf yükle"
-                >
-                  <Shuffle width={12} height={12} fill="none" stroke="currentColor" className="w-3 h-3 shrink-0" />
-                  <span>Farklı Paragraf</span>
-                </button>
-              )}
-            </div>
+            {/* Compact non-repeating Next Shuffled Passage button */}
+            {shuffledClozePassages.length > 1 && (
+              <button
+                type="button"
+                onClick={() => startClozeTest()}
+                className="h-8 px-3 rounded-xl text-xs font-semibold bg-[#E2F0D9] dark:bg-[#0F172A] text-[#0E2F0E] dark:text-[#F8FAFC] border border-[#B4C6A6] dark:border-[#334155] hover:border-[#388E3C] dark:hover:border-[#4F46E5] inline-flex items-center gap-1.5 transition-colors cursor-pointer whitespace-nowrap"
+                title="Havuzdan tekrar etmeyen sonraki paragrafı yükle"
+              >
+                <Shuffle width={13} height={13} fill="none" stroke="currentColor" className="w-3.5 h-3.5 shrink-0" />
+                <span>Yeni Paragraf / Sonraki Test</span>
+              </button>
+            )}
           </div>
 
           <p className="text-sm sm:text-[15.5px] leading-[1.95] text-[#1e293b] dark:text-[#e2e8f0]">

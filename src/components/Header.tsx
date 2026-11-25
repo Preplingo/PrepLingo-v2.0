@@ -1,5 +1,5 @@
 import React from 'react';
-import { Moon, Sun, Plus, Info } from 'lucide-react';
+import { Moon, Sun, Plus, Info, Loader2 } from 'lucide-react';
 import { AppLogo } from './AppLogo';
 import { SteamingCoffeeIcon } from './BuyCoffeeModal';
 
@@ -8,6 +8,7 @@ interface HeaderProps {
   onOpenAbout: () => void;
   onOpenBuyCoffee: () => void;
   onExportExcel: () => void;
+  isExportingExcel?: boolean;
   darkMode: boolean;
   onToggleDarkMode: () => void;
 }
@@ -68,6 +69,7 @@ export const Header: React.FC<HeaderProps> = ({
   onOpenAbout,
   onOpenBuyCoffee,
   onExportExcel,
+  isExportingExcel = false,
   darkMode,
   onToggleDarkMode,
 }) => {
@@ -108,19 +110,34 @@ export const Header: React.FC<HeaderProps> = ({
 
         {/* Right-Side Action Controls: Excel Export, Kelime Ekle, Bilgi, Gece/Gündüz Modu, and Coffee */}
         <div className="flex items-center gap-1 sm:gap-2 shrink-0">
-          {/* Small Excel Table Download Icon (exports ALL database words - words only) */}
+          {/* Small Excel Table Download Icon (exports ALL Prep Cards + public/sozluk.json categorized into Fiiller/İsimler/Sıfatlar/Zarflar) */}
           <button
             type="button"
             onClick={onExportExcel}
+            disabled={isExportingExcel}
             style={{
               backgroundColor: darkMode ? '#0F172A' : '#E2F0D9',
               borderColor: darkMode ? '#10B981' : '#388E3C',
             }}
-            className="min-h-[34px] min-w-[34px] sm:min-h-[40px] sm:min-w-[40px] p-1.5 sm:p-2 rounded-xl border transition-all flex items-center justify-center cursor-pointer hover:bg-[#C8E6C9] dark:hover:bg-[#1E293B] active:scale-95"
-            title="Tüm kelimeleri Excel tablosu (.xlsx) olarak indir"
-            aria-label="Tüm kelimeleri Excel tablosu olarak indir"
+            className="min-h-[34px] min-w-[34px] sm:min-h-[40px] sm:min-w-[40px] p-1.5 sm:p-2 rounded-xl border transition-all flex items-center justify-center cursor-pointer hover:bg-[#C8E6C9] dark:hover:bg-[#1E293B] active:scale-95 disabled:opacity-70 disabled:cursor-wait"
+            title={
+              isExportingExcel
+                ? 'Excel dosyası hazırlanıyor...'
+                : 'Tüm kelimeleri (Fiiller, İsimler, Sıfatlar, Zarflar) Türkçe anlamlarıyla Excel (.xlsx) olarak indir'
+            }
+            aria-label="Tüm kelimeleri kategorilere ayrılmış Excel tablosu olarak indir"
           >
-            <ExcelTableIcon darkMode={darkMode} />
+            {isExportingExcel ? (
+              <Loader2
+                width={18}
+                height={18}
+                fill="none"
+                stroke={darkMode ? '#10B981' : '#2E7D32'}
+                className="w-[18px] h-[18px] animate-spin shrink-0"
+              />
+            ) : (
+              <ExcelTableIcon darkMode={darkMode} />
+            )}
           </button>
 
           {/* Add Custom Word Button (Icon on mobile, text on md+) */}
