@@ -497,6 +497,7 @@ export default function App() {
       <AboutModal
         isOpen={isAboutOpen}
         onClose={() => setIsAboutOpen(false)}
+        prepCardCount={words.filter((w) => !w.isOfflineDict && !w.id.startsWith('offline_')).length}
       />
 
       {/* Buy Me a Coffee Modal */}

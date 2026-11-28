@@ -170,6 +170,7 @@ export const DictionaryView: React.FC<DictionaryViewProps> = ({
   const [highlightedWordId, setHighlightedWordId] = useState<string | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
   const dropdownRef = useRef<HTMLDivElement>(null);
+  const searchBoxContainerRef = useRef<HTMLDivElement>(null);
 
   // Track live browser online/offline state
   useEffect(() => {
@@ -215,76 +216,110 @@ export const DictionaryView: React.FC<DictionaryViewProps> = ({
       .sort(compareWordsAlphabetically);
   }, [words, directoryPos, selectedLetter]);
 
-  // Generate top 5 autocomplete suggestions: Stage 1 (Prep Cards) first, then Stage 2 (public/sozluk.json deduplicated)
+  // Generate TOP 8 live autocomplete suggestions (starting from 1st character):
+  // Strict priority: (1) Exact match first (Prep Card exact -> Offline exact),
+  //                  (2) 2,573 Prep Cards (English prefix before Turkish meaning, shorter words first),
+  //                  (3) Cleaned offline dictionary matches (shorter words first).
   const suggestions = useMemo(() => {
-    const query = searchQuery.trim().toLowerCase();
+    const trimmed = searchQuery.trim();
+    const query = trimmed.toLowerCase();
     if (!query) return [];
 
-    const queryTrLower = searchQuery.trim().toLocaleLowerCase('tr-TR');
+    const queryTrLower = trimmed.toLocaleLowerCase('tr-TR');
     const normQuery = normalizeForSearch(query);
 
-    const scored = prepCardWords
-      .map((word) => {
-        const index = getWordSearchIndex(word);
+    const exactPrep: WordEntry[] = [];
+    const prepPrefixEn: WordEntry[] = [];
+    const prepPrefixTr: WordEntry[] = [];
 
-        let score = 0;
-        if (index.wordLower === query) score = 100;
-        else if (normQuery && index.wordNorm === normQuery) score = 95;
-        else if (index.wordLower.startsWith(query)) score = 85;
-        else if (normQuery && index.wordNorm.startsWith(normQuery)) score = 80;
-        else if (
-          index.meaningSensesLower.some((s) => s.startsWith(queryTrLower)) ||
-          (normQuery && index.meaningSensesNorm.some((s) => s.startsWith(normQuery)))
-        ) {
-          score = 70;
-        } else if (
-          index.meaningRawTokens.some((t) => t.startsWith(queryTrLower)) ||
-          (normQuery && index.meaningNormTokens.some((t) => t.startsWith(normQuery)))
-        ) {
-          score = 60;
-        }
+    for (let i = 0; i < prepCardWords.length; i++) {
+      const word = prepCardWords[i];
+      const index = getWordSearchIndex(word);
 
-        return { word, score };
-      })
-      .filter((item) => item.score > 0)
-      .sort((a, b) => b.score - a.score || compareWordsAlphabetically(a.word, b.word));
-
-    const primaryResults = scored.slice(0, 5).map((item) => item.word);
-    const seenWords = new Set(primaryResults.map((w) => w.word.toLowerCase()));
-
-    // Backfill from deduplicated Stage 2 external public/sozluk.json only if fewer than 5 Prep Card matches
-    if (primaryResults.length < 5) {
-      const needed = 5 - primaryResults.length;
-      const offlineMatches = searchOfflineDictionary(searchQuery.trim(), needed + 5, prepCardWordSet);
-
-      for (const offWord of offlineMatches) {
-        const key = offWord.word.toLowerCase();
-        if (!seenWords.has(key) && !prepCardWordSet.has(key)) {
-          seenWords.add(key);
-          primaryResults.push(offWord);
-          if (primaryResults.length >= 5) break;
-        }
+      if (index.wordLower === query || (normQuery && index.wordNorm === normQuery)) {
+        exactPrep.push(word);
+      } else if (index.wordLower.startsWith(query) || (normQuery && index.wordNorm.startsWith(normQuery))) {
+        prepPrefixEn.push(word);
+      } else if (
+        index.meaningSensesLower.some((s) => s.startsWith(queryTrLower)) ||
+        (normQuery && index.meaningSensesNorm.some((s) => s.startsWith(normQuery))) ||
+        index.meaningRawTokens.some((t) => t.startsWith(queryTrLower)) ||
+        (normQuery && index.meaningNormTokens.some((t) => t.startsWith(normQuery)))
+      ) {
+        prepPrefixTr.push(word);
       }
     }
 
-    return primaryResults;
+    const sortShorterFirst = (a: WordEntry, b: WordEntry) =>
+      a.word.length - b.word.length || compareWordsAlphabetically(a, b);
+
+    exactPrep.sort(sortShorterFirst);
+    prepPrefixEn.sort(sortShorterFirst);
+    prepPrefixTr.sort(sortShorterFirst);
+
+    const exactOffline: WordEntry[] = [];
+    const offlineRest: WordEntry[] = [];
+
+    // Fetch cleaned offline dictionary matches (already shortest-first)
+    const offlineMatches = searchOfflineDictionary(trimmed, 16, prepCardWordSet);
+    for (let i = 0; i < offlineMatches.length; i++) {
+      const offWord = offlineMatches[i];
+      const key = offWord.word.toLowerCase();
+      if (prepCardWordSet.has(key)) continue;
+
+      if (key === query || (normQuery && normalizeForSearch(key) === normQuery)) {
+        exactOffline.push(offWord);
+      } else {
+        offlineRest.push(offWord);
+      }
+    }
+
+    const combined: WordEntry[] = [];
+    const seenWords = new Set<string>();
+    const appendUnique = (list: WordEntry[]) => {
+      for (let i = 0; i < list.length; i++) {
+        if (combined.length >= 8) break;
+        const item = list[i];
+        const key = item.word.toLowerCase();
+        if (!seenWords.has(key)) {
+          seenWords.add(key);
+          combined.push(item);
+        }
+      }
+    };
+
+    // 1) Exact match first (Prep Card exact, then Offline exact)
+    appendUnique(exactPrep);
+    appendUnique(exactOffline);
+    // 2) Remaining Prep Card matches
+    appendUnique(prepPrefixEn);
+    appendUnique(prepPrefixTr);
+    // 3) Remaining cleaned offline dictionary matches (shortest words first)
+    appendUnique(offlineRest);
+
+    return combined;
   }, [prepCardWords, prepCardWordSet, searchQuery, isOfflineDictLoaded]);
 
-  // Click outside listener to dismiss suggestions
+  // Click / touch outside listener to dismiss suggestions pop-up
   useEffect(() => {
-    const handleClickOutside = (event: MouseEvent) => {
+    const handlePointerOutside = (event: MouseEvent | TouchEvent) => {
+      const target = event.target as Node;
       if (
         dropdownRef.current &&
-        !dropdownRef.current.contains(event.target as Node) &&
+        !dropdownRef.current.contains(target) &&
         inputRef.current &&
-        !inputRef.current.contains(event.target as Node)
+        !inputRef.current.contains(target)
       ) {
         setShowSuggestions(false);
         setIsInputFocused(false);
       }
     };
-    document.addEventListener('mousedown', handleClickOutside);
-    return () => document.removeEventListener('mousedown', handleClickOutside);
+    document.addEventListener('mousedown', handlePointerOutside);
+    document.addEventListener('touchstart', handlePointerOutside, { passive: true });
+    return () => {
+      document.removeEventListener('mousedown', handlePointerOutside);
+      document.removeEventListener('touchstart', handlePointerOutside);
+    };
   }, []);
 
   // Explicit Search Submit handler (Arrow button click or mobile/desktop Enter key)
@@ -372,7 +407,10 @@ export const DictionaryView: React.FC<DictionaryViewProps> = ({
       setVisibleBatchCount(targetIdx + 20);
     }
 
-    // Scroll to & highlight the selected card
+    // Open detail card & highlight the selected card
+    if (!word.isOfflineDict && !word.isGeneralDict) {
+      setExpandedCardId(word.id);
+    }
     setHighlightedWordId(word.id);
 
     setTimeout(() => {
@@ -518,9 +556,11 @@ export const DictionaryView: React.FC<DictionaryViewProps> = ({
     setPosFilter('all');
     setStatusFilter('all');
     setShowSuggestions(false);
+    setIsInputFocused(false);
     setActiveSuggestionIndex(-1);
     setOnlineResults([]);
     setOnlineErrorReason(null);
+    inputRef.current?.blur();
   };
 
   // Stage 3: Automatic Online Lookup (500ms debounced on typing, 0ms on Search Button / Enter)
@@ -1062,8 +1102,11 @@ export const DictionaryView: React.FC<DictionaryViewProps> = ({
         /* Standard Search & List View */
         <>
           {/* Search & Filter Header Box */}
-          <div className="bg-[#ffffff] dark:bg-[#1e293b] rounded-3xl p-4 sm:p-6 border border-[#e2e8f0] dark:border-[#334155] shadow-sm transition-colors space-y-4">
-        {/* Instant Search Bar with Prominent Emerald Focus Styling & Autocomplete Suggestions */}
+          <div
+            ref={searchBoxContainerRef}
+            className="scroll-mt-20 bg-[#ffffff] dark:bg-[#1e293b] rounded-3xl p-4 sm:p-6 border border-[#e2e8f0] dark:border-[#334155] shadow-sm transition-colors space-y-4"
+          >
+        {/* Instant Search Bar with Mobile Keyboard Alignment & Live Autocomplete Pop-up */}
         <form
           onSubmit={(e) => {
             e.preventDefault();
@@ -1090,6 +1133,13 @@ export const DictionaryView: React.FC<DictionaryViewProps> = ({
                 setIsInputFocused(true);
                 setShowSuggestions(true);
                 ensureOfflineDictionaryLoaded();
+                // Smoothly scroll search box near the top so mobile keyboards never cover it or the pop-up
+                setTimeout(() => {
+                  searchBoxContainerRef.current?.scrollIntoView({
+                    behavior: 'smooth',
+                    block: 'start',
+                  });
+                }, 120);
               }}
               onKeyDown={handleKeyDown}
               placeholder="Kelime veya anlam ara (İngilizce / Türkçe)..."
@@ -1135,70 +1185,87 @@ export const DictionaryView: React.FC<DictionaryViewProps> = ({
             </button>
           </div>
 
-          {/* Autocomplete Suggestions Floating Dropdown */}
-          {showSuggestions && isInputFocused && suggestions.length > 0 && searchQuery.trim().length >= 1 && (
+          {/* Live Autocomplete Floating Pop-up (TOP 8 compact rows, or Did You Mean fallback on 0 matches) */}
+          {showSuggestions &&
+            isInputFocused &&
+            searchQuery.trim().length >= 1 &&
+            (suggestions.length > 0 || didYouMeanSuggestions.length > 0) && (
             <div
               ref={dropdownRef}
-              className="absolute left-0 right-0 top-full mt-2 z-50 bg-[#ffffff] dark:bg-[#1e293b] rounded-2xl shadow-2xl border border-[#e2e8f0] dark:border-[#334155] overflow-hidden divide-y divide-[#f1f5f9] dark:divide-[#334155] animate-in fade-in slide-in-from-top-1 duration-150"
+              className="absolute left-0 right-0 top-full mt-1.5 z-50 bg-[#FFFFFF] dark:bg-[#1E293B] rounded-2xl shadow-2xl border-2 border-[#B4C6A6] dark:border-[#334155] overflow-hidden animate-in fade-in slide-in-from-top-1 duration-150"
             >
-              <div className="px-3.5 py-1.5 bg-[#f8fafc] dark:bg-[#0f172a] flex items-center justify-between text-[11px] text-[#475569] dark:text-[#94a3b8] font-medium">
-                <span>Önerilen Kelimeler</span>
-                <span className="text-[10px] hidden sm:inline text-[#64748b] dark:text-[#94a3b8] font-mono">
-                  Seçmek için dokunun
-                </span>
-              </div>
-              <ul className="max-h-72 overflow-y-auto divide-y divide-[#f1f5f9] dark:divide-[#334155]">
-                {suggestions.map((item, index) => {
-                  const isSelected = activeSuggestionIndex === index;
-                  return (
-                    <li
-                      key={item.id}
-                      onMouseDown={(e) => {
-                        e.preventDefault();
-                        handleSelectSuggestion(item);
-                      }}
-                      className={`px-4 py-3 flex items-center justify-between gap-3 cursor-pointer transition-colors ${
-                        isSelected
-                          ? 'bg-[#ecfdf5] dark:bg-[#064e3b] text-[#065f46] dark:text-[#a7f3d0]'
-                          : 'hover:bg-[#f8fafc] dark:hover:bg-[#0f172a]'
-                      }`}
-                    >
-                      <div className="flex items-center gap-2 min-w-0">
-                        <span className="font-bold font-['Outfit'] text-[#0f172a] dark:text-[#f8fafc] text-sm sm:text-base">
-                          {item.word}
-                        </span>
-                        <span className="text-xs font-mono text-[#475569] dark:text-[#94a3b8] shrink-0">
-                          ({getPosAbbr(item.partOfSpeech)})
-                        </span>
-                        <span className="text-[#cbd5e1] dark:text-[#475569]">·</span>
-                        <span className="text-xs sm:text-sm text-[#475569] dark:text-[#94a3b8] truncate">
-                          {item.trMeaning}
-                        </span>
-                      </div>
-                      <div className="flex items-center gap-2 shrink-0">
-                        {item.isOfflineDict ? (
-                          <span className="text-[10px] font-bold px-2 py-0.5 rounded-md bg-[#E2F0D9] dark:bg-[#0F172A] text-[#0E2F0E] dark:text-[#F8FAFC] border border-[#B4C6A6] dark:border-[#334155]">
-                            Çevrimdışı Sözlük 📖
+              {suggestions.length > 0 ? (
+                <ul className="max-h-72 overflow-y-auto divide-y divide-[#E2F0D9] dark:divide-[#334155]">
+                  {suggestions.map((item, index) => {
+                    const isSelected = activeSuggestionIndex === index;
+                    const primaryPosTag = item.offlinePosLabel
+                      ? item.offlinePosLabel.split(',')[0].trim()
+                      : getPosTurkishLabel(item.partOfSpeech);
+                    return (
+                      <li
+                        key={item.id}
+                        onMouseDown={(e) => {
+                          e.preventDefault();
+                          handleSelectSuggestion(item);
+                        }}
+                        className={`px-3.5 py-2.5 flex items-center justify-between gap-2.5 cursor-pointer transition-colors ${
+                          isSelected
+                            ? 'bg-[#E2F0D9] dark:bg-[#0F172A]'
+                            : 'hover:bg-[#F3F8EE] dark:hover:bg-[#0F172A]'
+                        }`}
+                      >
+                        <div className="flex items-center gap-2 shrink-0 max-w-[58%] min-w-0">
+                          <span className="font-bold font-['Outfit'] text-[#0E2F0E] dark:text-[#F8FAFC] text-sm truncate">
+                            {item.word}
                           </span>
-                        ) : item.isGeneralDict ? (
-                          <span className="text-[10px] font-bold px-2 py-0.5 rounded-md bg-[#f0f9ff] dark:bg-[#082f49] text-[#0369a1] dark:text-[#7dd3fc] border border-[#7dd3fc] dark:border-[#075985]">
-                            Genel Sözlük
-                          </span>
-                        ) : (
                           <span
-                            className={`text-[10px] font-bold px-2 py-0.5 rounded-md uppercase tracking-wide ${getCefrBadgeClass(
-                              item.cefrLevel
+                            className={`text-[10px] font-bold px-1.5 py-0.5 rounded-md border shrink-0 leading-tight ${getPosBadgeClass(
+                              item.partOfSpeech
                             )}`}
                           >
-                            {item.cefrLevel}
+                            {primaryPosTag}
                           </span>
-                        )}
-                        <ArrowUpRight width={14} height={14} fill="none" stroke="#94a3b8" className="w-3.5 h-3.5" />
-                      </div>
-                    </li>
-                  );
-                })}
-              </ul>
+                        </div>
+                        <span className="text-xs text-[#475569] dark:text-[#94A3B8] truncate text-right min-w-0 flex-1">
+                          {item.trMeaning}
+                        </span>
+                      </li>
+                    );
+                  })}
+                </ul>
+              ) : (
+                <div className="p-3 space-y-2 bg-[#FFFFFF] dark:bg-[#1E293B]">
+                  <div className="flex items-center gap-1.5 text-[11px] font-bold text-[#0E2F0E] dark:text-[#F8FAFC]">
+                    <Sparkles
+                      width={13}
+                      height={13}
+                      fill="none"
+                      stroke="currentColor"
+                      className="w-3.5 h-3.5 text-[#388E3C] dark:text-[#818CF8] shrink-0"
+                    />
+                    <span>Bunu mu demek istediniz?</span>
+                  </div>
+                  <ul className="divide-y divide-[#E2F0D9] dark:divide-[#334155] rounded-xl border border-[#B4C6A6] dark:border-[#334155] overflow-hidden">
+                    {didYouMeanSuggestions.map((item) => (
+                      <li
+                        key={item.word}
+                        onMouseDown={(e) => {
+                          e.preventDefault();
+                          handleSelectDidYouMean(item.word);
+                        }}
+                        className="px-3 py-2 flex items-center justify-between gap-2.5 cursor-pointer bg-[#FFFFFF] dark:bg-[#0F172A] hover:bg-[#E2F0D9] dark:hover:bg-[#334155] transition-colors"
+                      >
+                        <span className="font-bold font-['Outfit'] text-[#0E2F0E] dark:text-[#F8FAFC] text-sm shrink-0">
+                          {item.word}
+                        </span>
+                        <span className="text-xs text-[#475569] dark:text-[#94A3B8] truncate text-right">
+                          {item.trMeaning}
+                        </span>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              )}
             </div>
           )}
         </form>

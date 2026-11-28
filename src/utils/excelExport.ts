@@ -8,10 +8,26 @@ import {
 interface ExportRow {
   word: string;
   meaning: string;
-  posLabel?: string;
 }
 
-type CategoryKey = 'verb' | 'noun' | 'adjective' | 'adverb' | 'other';
+type CategoryKey = 'verb' | 'noun' | 'adjective' | 'adverb';
+
+function deduplicateMeaningText(raw: string): string {
+  const parts = raw
+    .split(/[,;]+/)
+    .map((p) => p.replace(/\s+/g, ' ').trim())
+    .filter(Boolean);
+  const seen = new Set<string>();
+  const unique: string[] = [];
+  for (let i = 0; i < parts.length; i++) {
+    const key = parts[i].toLocaleLowerCase('tr-TR');
+    if (!seen.has(key)) {
+      seen.add(key);
+      unique.push(parts[i]);
+    }
+  }
+  return unique.join(', ');
+}
 
 function extractCategoriesFromPosString(rawPos: string): CategoryKey[] {
   const tokens = rawPos
@@ -44,31 +60,19 @@ function extractCategoriesFromPosString(rawPos: string): CategoryKey[] {
     }
   }
 
-  if (matched.size === 0) {
-    matched.add('other');
-  }
-
   return Array.from(matched);
 }
 
-function getTurkishPosFallback(rawPos?: string): string {
-  const lower = (rawPos || '').trim().toLocaleLowerCase('tr-TR');
-  if (lower === 'conjunction' || lower === 'conj') return 'Bağlaç';
-  if (lower === 'preposition' || lower === 'prep') return 'Edat';
-  return (rawPos || '').trim() || 'Genel';
-}
-
 /**
- * Builds the categorized workbook from BOTH:
+ * Builds the 4-sheet categorized workbook from BOTH:
  * 1) All Prep Cards & custom words in the app (`words`)
- * 2) The full external offline dictionary (`public/sozluk.json`)
+ * 2) The cleaned, inflection-free offline dictionary pool (`sozluk_clean_v2`)
  *
- * Sheet order:
+ * Strictly 4 sheets in exact order:
  * 1. Fiiller   (Verbs + Turkish meanings)
  * 2. İsimler   (Nouns + Turkish meanings)
  * 3. Sıfatlar  (Adjectives + Turkish meanings)
  * 4. Zarflar   (Adverbs + Turkish meanings)
- * 5. Diğer     (Remaining Edat/Bağlaç/Zamir/Ünlem entries, if any, so 100% of words are included)
  */
 export function buildCategorizedExcelWorkbook(
   words: WordEntry[],
@@ -79,7 +83,6 @@ export function buildCategorizedExcelWorkbook(
     noun: new Map<string, ExportRow>(),
     adjective: new Map<string, ExportRow>(),
     adverb: new Map<string, ExportRow>(),
-    other: new Map<string, ExportRow>(),
   };
 
   // 1. Add all Prep Cards & custom words first (takes priority over general offline entries)
@@ -87,7 +90,7 @@ export function buildCategorizedExcelWorkbook(
     const entry = words[i];
     const word = (entry?.word || '').trim();
     if (!word) continue;
-    const meaning = (entry.trMeaning || entry.meaning || '').trim();
+    const meaning = deduplicateMeaningText((entry.trMeaning || entry.meaning || '').trim());
     const key = word.toLowerCase();
 
     const rawPos = entry.offlinePosLabel || entry.partOfSpeech || entry.type || '';
@@ -99,13 +102,12 @@ export function buildCategorizedExcelWorkbook(
         buckets[cat].set(key, {
           word,
           meaning,
-          posLabel: cat === 'other' ? getTurkishPosFallback(String(rawPos)) : undefined,
         });
       }
     }
   }
 
-  // 2. Merge all entries from external public/sozluk.json
+  // 2. Merge all cleaned, deduplicated entries from offlineDictionary
   for (let i = 0; i < offlineEntries.length; i++) {
     const item = offlineEntries[i];
     const word = (item.w || '').trim();
@@ -120,7 +122,6 @@ export function buildCategorizedExcelWorkbook(
         buckets[cat].set(key, {
           word,
           meaning,
-          posLabel: cat === 'other' ? getTurkishPosFallback(item.pLabel) : undefined,
         });
       }
     }
@@ -143,31 +144,18 @@ export function buildCategorizedExcelWorkbook(
     XLSX.utils.book_append_sheet(workbook, ws, sheetName);
   };
 
-  // Exact required sheet order: 1. Fiiller, 2. İsimler, 3. Sıfatlar, 4. Zarflar
+  // Strictly 4 sheets in exact order: 1. Fiiller, 2. İsimler, 3. Sıfatlar, 4. Zarflar
   appendTwoColSheet('Fiiller', sortRows(buckets.verb));
   appendTwoColSheet('İsimler', sortRows(buckets.noun));
   appendTwoColSheet('Sıfatlar', sortRows(buckets.adjective));
   appendTwoColSheet('Zarflar', sortRows(buckets.adverb));
 
-  // Include any remaining words (Edat, Bağlaç, Zamir, Ünlem, Genel) on sheet 5 so zero words are omitted
-  const otherRows = sortRows(buckets.other);
-  if (otherRows.length > 0) {
-    const aoa: string[][] = new Array(otherRows.length + 1);
-    aoa[0] = ['İngilizce Kelime', 'Tür', 'Türkçe Anlamı'];
-    for (let i = 0; i < otherRows.length; i++) {
-      aoa[i + 1] = [otherRows[i].word, otherRows[i].posLabel || 'Genel', otherRows[i].meaning];
-    }
-    const ws = XLSX.utils.aoa_to_sheet(aoa);
-    ws['!cols'] = [{ wch: 24 }, { wch: 18 }, { wch: 58 }];
-    XLSX.utils.book_append_sheet(workbook, ws, 'Diğer');
-  }
-
   return workbook;
 }
 
 /**
- * Ensures public/sozluk.json is loaded, merges it with all Prep Cards, categorizes into
- * Fiiller / İsimler / Sıfatlar / Zarflar (+ Diğer) with Turkish meanings, and triggers
+ * Ensures the cleaned offline dictionary is loaded, merges it with all Prep Cards, categorizes into
+ * strictly 4 sheets (Fiiller, İsimler, Sıfatlar, Zarflar) with Turkish meanings, and triggers
  * native Excel (.xlsx) download on both mobile and desktop.
  */
 export async function exportAllWordsToExcel(words: WordEntry[]): Promise<void> {

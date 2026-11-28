@@ -13,15 +13,40 @@ import {
   MessageSquareHeart,
 } from 'lucide-react';
 import { AppLogo } from './AppLogo';
+import { INITIAL_WORDS } from '../data/initialWords';
+import {
+  offlineDictionary,
+  ensureOfflineDictionaryLoaded,
+} from '../data/offlineDictionaryLoader';
 
 interface AboutModalProps {
   isOpen: boolean;
   onClose: () => void;
+  prepCardCount?: number;
 }
 
-export const AboutModal: React.FC<AboutModalProps> = ({ isOpen, onClose }) => {
+export const AboutModal: React.FC<AboutModalProps> = ({
+  isOpen,
+  onClose,
+  prepCardCount = INITIAL_WORDS.length,
+}) => {
   const [copied, setCopied] = useState(false);
+  const [offlineCount, setOfflineCount] = useState<number>(() => offlineDictionary.getCount());
+  const [isOfflineReady, setIsOfflineReady] = useState<boolean>(() => offlineDictionary.getIsLoaded());
   const supportEmail = 'preplingostudio@gmail.com';
+
+  useEffect(() => {
+    const syncCounts = () => {
+      setOfflineCount(offlineDictionary.getCount());
+      setIsOfflineReady(offlineDictionary.getIsLoaded());
+    };
+    const unsubscribe = offlineDictionary.subscribe(syncCounts);
+    if (isOpen) {
+      ensureOfflineDictionaryLoaded();
+      syncCounts();
+    }
+    return unsubscribe;
+  }, [isOpen]);
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -34,6 +59,11 @@ export const AboutModal: React.FC<AboutModalProps> = ({ isOpen, onClose }) => {
   }, [isOpen, onClose]);
 
   if (!isOpen) return null;
+
+  const totalUniqueCount = prepCardCount + offlineCount;
+  const formattedPrepCount = prepCardCount.toLocaleString('tr-TR');
+  const formattedOfflineCount = offlineCount.toLocaleString('tr-TR');
+  const formattedTotalCount = totalUniqueCount.toLocaleString('tr-TR');
 
   const handleFeedbackClick = () => {
     const mailtoUrl = `mailto:${supportEmail}?subject=Preplingo%20Geri%20Bildirim%20ve%20%C3%96neri&body=Merhaba%20Preplingo%20Ekibi%2C%0A%0A%5BHata%20bildirimi%2C%20eksik%20kelime%20veya%20%C3%B6nerinizi%20buraya%20yazabilirsiniz%5D%0A%0A%C4%B0yi%20%C3%A7al%C4%B1%C5%9Fmalar.`;
@@ -103,7 +133,7 @@ export const AboutModal: React.FC<AboutModalProps> = ({ isOpen, onClose }) => {
               <span>Üniversite Hazırlık, Sınavlar ve Tüm Öğrenenler İçin</span>
             </div>
             <p className="text-[#475569] dark:text-[#94a3b8] leading-relaxed text-xs">
-              Üniversite hazırlık öğrencileri, yeni başlayanlar ve YDS, YÖKDİL, IELTS, TOEFL sınavlarına hazırlananlar için kapsamlı İngilizce-Türkçe / Türkçe-İngilizce sözlük ve kelime platformu. A1–B2 temel sözcüklerden yüksek frekanslı 2.500 akademik kelimeye ve 30.000+ genel sözlük arşivine kadar tüm seviyeleri kapsar.
+              Üniversite hazırlık öğrencileri, yeni başlayanlar ve YDS, YÖKDİL, IELTS, TOEFL sınavlarına hazırlananlar için kapsamlı İngilizce-Türkçe / Türkçe-İngilizce sözlük ve kelime platformu. A1–B2 temel sözcüklerden yüksek frekanslı {formattedPrepCount} akademik hazırlık kartına ve toplam {isOfflineReady && offlineCount > 0 ? formattedTotalCount : '86.000+'} benzersiz kelimelik genel sözlük arşivine kadar tüm seviyeleri kapsar.
             </p>
           </div>
 
@@ -113,12 +143,12 @@ export const AboutModal: React.FC<AboutModalProps> = ({ isOpen, onClose }) => {
               <Database width={16} height={16} stroke="currentColor" fill="none" className="w-4 h-4 text-[#059669] dark:text-[#34d399] shrink-0" />
               <span>Bilinçli İki Katmanlı Sözlük Mimarisi</span>
             </div>
-            
+
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs">
               <div className="p-3 rounded-xl bg-[#ffffff] dark:bg-[#1e293b] border border-[#e2e8f0] dark:border-[#334155] space-y-1">
                 <div className="flex items-center gap-1.5 font-bold text-[#b45309] dark:text-[#fcd34d]">
                   <Sparkles width={14} height={14} stroke="currentColor" fill="none" className="w-3.5 h-3.5" />
-                  <span>2.500 Zengin Akademik Kart</span>
+                  <span>{formattedPrepCount} Zengin Akademik Kart</span>
                 </div>
                 <p className="text-[#475569] dark:text-[#94a3b8] leading-relaxed">
                   CEFR A1–B2 seviye rozetleri, İngilizce telaffuz sesleri, çift dilli örnek cümleler, sınav ipuçları ve fiil çekim formları (V1/V2/V3).
@@ -128,10 +158,14 @@ export const AboutModal: React.FC<AboutModalProps> = ({ isOpen, onClose }) => {
               <div className="p-3 rounded-xl bg-[#ffffff] dark:bg-[#1e293b] border border-[#e2e8f0] dark:border-[#334155] space-y-1">
                 <div className="flex items-center gap-1.5 font-bold text-[#0369a1] dark:text-[#7dd3fc]">
                   <BookOpen width={14} height={14} stroke="currentColor" fill="none" className="w-3.5 h-3.5" />
-                  <span>25.000+ Kelimelik Genel Sözlük</span>
+                  <span>
+                    {isOfflineReady && offlineCount > 0
+                      ? `${formattedOfflineCount} Temizlenmiş Genel Kelime`
+                      : '84.000+ Temizlenmiş Genel Kelime'}
+                  </span>
                 </div>
                 <p className="text-[#475569] dark:text-[#94a3b8] leading-relaxed">
-                  Akademik liste dışındaki günlük kelimeleri aradığınızda, internet gerekmeksizin anında Türkçe karşılık sağlayan ultra hafif çevrimdışı yedek katman.
+                  Mükerrer kayıt ve çekim eklerinden arındırılmış, cihaz belleğinde saklanarak internet gerekmeksizin anında Türkçe karşılık veren çevrimdışı sözlük katmanı.
                 </p>
               </div>
             </div>
@@ -225,6 +259,15 @@ export const AboutModal: React.FC<AboutModalProps> = ({ isOpen, onClose }) => {
           >
             Anladım
           </button>
+        </div>
+
+        {/* Single-line Live Unique Total Word Counter at the very bottom */}
+        <div className="pt-2.5 border-t border-[#E2F0D9] dark:border-[#334155] text-center">
+          <p className="text-[11px] font-semibold text-[#0E2F0E] dark:text-[#94A3B8] truncate">
+            {isOfflineReady && offlineCount > 0
+              ? `Toplam Benzersiz Kelime: ${formattedTotalCount} (${formattedPrepCount} Hazırlık Kartı + ${formattedOfflineCount} Çevrimdışı Sözlük)`
+              : `Toplam Benzersiz Kelime: ${formattedPrepCount} Hazırlık Kartı · Çevrimdışı sözlük hazırlanıyor...`}
+          </p>
         </div>
       </div>
     </div>
